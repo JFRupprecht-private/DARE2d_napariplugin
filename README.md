@@ -35,13 +35,15 @@ napari-dare2d/               # the plugin (this project)
   verify_api.py              # real check (needs checkpoints + data)
   verify_layers.py           # fast check (geometry, no models)
   pyproject.toml
-regression_checkpoints/      # NOT in git — see "Model weights & data" below
-segmentation_checkpoints/    # NOT in git
-set_8/                       # NOT in git — example stack + reference detections
-dare2d-torch/                # GPU inference: ONNX (done) + PyTorch port (reg done, seg=ONNX)
+models/                      # NOT in git — checkpoints
+  best/                      #   curated weights (READ-ONLY): {regression,segmentation}_checkpoints/...
+  <run_name>/                #   one folder per retraining run (see RETRAINING_PLAN.md)
+data/                        # NOT in git — training dataset (neuroepithelium set_1..8)
+set_8/                       # NOT in git — example stack + annotations (demo / annotation viewer)
+dare2d-torch/                # GPU inference: ONNX (done) + full PyTorch port (reg + seg)
 HANDOFF.md                   # full build log / decisions / gotchas
-FOR_DARE3D.md                # notes for porting this to the 3D pipeline
 PYTORCH_MIGRATION.md         # migration plan + status (ONNX/GPU + PyTorch port)
+RETRAINING_PLAN.md           # plan for the retraining plugin (leave-one-out)
 ```
 
 ## Model weights & data (not in git)
@@ -51,9 +53,10 @@ segmentation `best.h5` files exceed GitHub's 100 MB/file limit). Place them back
 in this exact layout before running:
 
 ```
-regression_checkpoints/checkpoints_set_{1..8}_all_but_target/best.h5
-segmentation_checkpoints/checkpoints_set_{1..8}_all_but_target/best.h5
-set_8/<your_stack>.tif                      # an 8-bit (T, Y, X) stack, optional
+models/best/regression_checkpoints/checkpoints_set_{1..8}_all_but_target/best.h5
+models/best/segmentation_checkpoints/checkpoints_set_{1..8}_all_but_target/best.h5
+data/neuroepithelium/neuroepithelium/set_{1..8}/   # training data (movie + .npy), optional
+set_8/<your_stack>.tif                             # an 8-bit (T, Y, X) stack, optional
 ```
 
 Input images must be **8-bit** grayscale `(T, Y, X)` `.tif` stacks (16-bit is not

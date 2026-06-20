@@ -37,8 +37,11 @@ _HERE = Path(__file__).resolve().parent
 PROJECT_ROOT = _HERE.parents[1]
 _REPO = PROJECT_ROOT / "DARE2d-main"
 CONFIG_DIR = str(_REPO / "config")
-DEFAULT_REG_DIR = PROJECT_ROOT / "regression_checkpoints"
-DEFAULT_SEG_DIR = PROJECT_ROOT / "segmentation_checkpoints"
+# Curated ("best") checkpoints live under models/best/ (read-only; retraining writes
+# new runs to sibling models/<run>/ folders, never here -- see RETRAINING_PLAN.md).
+MODELS_DIR = PROJECT_ROOT / "models"
+DEFAULT_REG_DIR = MODELS_DIR / "best" / "regression_checkpoints"
+DEFAULT_SEG_DIR = MODELS_DIR / "best" / "segmentation_checkpoints"
 DEFAULT_ANNOT_DIR = PROJECT_ROOT / "set_8"
 
 # scripts/ has no __init__.py; it imports as an implicit namespace package
@@ -80,6 +83,7 @@ __all__ = [
     "parse_sets",
     "resolve_frames",
     "CONFIG_DIR",
+    "MODELS_DIR",
     "DEFAULT_REG_DIR",
     "DEFAULT_SEG_DIR",
     "DEFAULT_ANNOT_DIR",

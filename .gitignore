@@ -1,9 +1,10 @@
 # --- Large model weights & data (exceed GitHub's 100 MB/file limit; not for VCS) ---
-regression_checkpoints/
-segmentation_checkpoints/
+# training dataset (neuroepithelium sets: movies + annotations)
+data/
+# checkpoints: models/best/ (curated) + retraining run folders
+models/
+# example movie + annotations for the demo / annotation viewer
 set_8/
-# neuroepithelium: data folder (new annotations + training dataset) — not for VCS
-neuroepithelium/
 *.h5
 *.tif
 *.tiff
