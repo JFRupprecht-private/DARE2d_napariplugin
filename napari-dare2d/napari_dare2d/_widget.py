@@ -158,3 +158,30 @@ def dare2d_widget(
     worker.finished.connect(lambda: setattr(pbar, "visible", False))
     worker.start()
     return worker
+
+
+@magic_factory(
+    call_button="Load annotations",
+    folder={"mode": "d", "label": "Annotations folder"},
+    show_links={"label": "Draw pair links"},
+    point_size={"label": "Point size"},
+)
+def annotations_widget(
+    folder: Path = _api.DEFAULT_ANNOT_DIR,
+    show_links: bool = True,
+    point_size: int = 12,
+):
+    """Overlay ground-truth annotations (paired daughter cells) from .npy files.
+
+    Reads ``division_position*.npy`` in ``folder`` and adds a Points layer (every
+    annotated cell) and a Vectors layer linking each daughter-cell pair. Fast
+    (file reads only), so it runs synchronously.
+    """
+    viewer = napari.current_viewer()
+    if viewer is None:
+        raise RuntimeError("no active napari viewer")
+    layer_data = _api.annotations_to_layer_data(
+        folder, point_size=point_size, show_links=show_links
+    )
+    for data, meta, ltype in layer_data:
+        viewer._add_layer_from_data(data, meta, ltype)

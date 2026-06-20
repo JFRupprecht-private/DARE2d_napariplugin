@@ -39,6 +39,7 @@ _REPO = PROJECT_ROOT / "DARE2d-main"
 CONFIG_DIR = str(_REPO / "config")
 DEFAULT_REG_DIR = PROJECT_ROOT / "regression_checkpoints"
 DEFAULT_SEG_DIR = PROJECT_ROOT / "segmentation_checkpoints"
+DEFAULT_ANNOT_DIR = PROJECT_ROOT / "set_8"
 
 # scripts/ has no __init__.py; it imports as an implicit namespace package
 # once the repo root is on sys.path.
@@ -73,12 +74,15 @@ __all__ = [
     "detections_to_points",
     "detections_to_vectors",
     "to_layer_data",
+    "annotation_pairs",
+    "annotations_to_layer_data",
     "find_checkpoints",
     "parse_sets",
     "resolve_frames",
     "CONFIG_DIR",
     "DEFAULT_REG_DIR",
     "DEFAULT_SEG_DIR",
+    "DEFAULT_ANNOT_DIR",
 ]
 
 
@@ -438,3 +442,72 @@ def to_layer_data(per_frame, frame_base=0, name="DARE2D", point_size=24,
         "vector_style": vector_style,  # "line" (no arrowhead) — the division axis
     }
     return [(points, points_meta, "points"), (vectors, vectors_meta, "vectors")]
+
+
+# ---------------------------------------------------------------------------
+# Ground-truth annotations: paired daughter cells per frame
+# ---------------------------------------------------------------------------
+# set_8/division_position{n}.npy holds an int (2K, 3) array of [x, y, frame] rows
+# where CONSECUTIVE rows are paired: row 2k and 2k+1 are the two daughter cells of
+# one division. ``frame`` is 1-based (file n -> frame label n), so napari t =
+# frame - frame_base (frame_base=1, same convention as consensus keys). x=col, y=row.
+
+def _annot_file_num(p):
+    digits = "".join(ch for ch in Path(p).stem if ch.isdigit())
+    return int(digits) if digits else 0
+
+
+def annotation_pairs(rows, frame_base=1):
+    """``(2K, 3)`` ``[x, y, frame]`` rows -> list of ``((t,yA,xA), (t,yB,xB))`` pairs.
+
+    Pairs consecutive rows (the two daughter cells). A trailing unpaired row is
+    ignored. Pure / no napari, so it's unit-testable without files.
+    """
+    rows = np.atleast_2d(np.asarray(rows))
+    out = []
+    for k in range(0, len(rows) - 1, 2):
+        xa, ya, fa = rows[k][:3]
+        xb, yb, _ = rows[k + 1][:3]
+        t = int(fa) - frame_base
+        out.append(((t, float(ya), float(xa)), (t, float(yb), float(xb))))
+    return out
+
+
+def annotations_to_layer_data(folder=DEFAULT_ANNOT_DIR, name="annotations",
+                              point_size=12, show_links=True, frame_base=1):
+    """Load ``division_position*.npy`` and build napari ``LayerDataTuple``s.
+
+    Returns a Points layer (every annotated daughter cell at ``(t, y, x)``) and,
+    if ``show_links``, a Vectors layer drawing a segment between each pair (the
+    division: cell A -> cell B). Raises FileNotFoundError if the folder has none.
+    """
+    folder = Path(folder)
+    files = sorted(folder.glob("division_position*.npy"), key=_annot_file_num)
+    if not files:
+        raise FileNotFoundError(f"no division_position*.npy in {folder}")
+
+    pts, vecs = [], []
+    for f in files:
+        rows = np.load(f)  # plain int array; no pickle needed
+        if np.asarray(rows).size == 0:
+            continue
+        for a, b in annotation_pairs(rows, frame_base):
+            pts.append(a)
+            pts.append(b)
+            vecs.append([a, (0.0, b[1] - a[1], b[2] - a[2])])
+
+    points = np.asarray(pts, dtype=float).reshape(-1, 3)
+    points_meta = {"name": f"{name} cells", "size": point_size, "face_color": "yellow"}
+    points_meta[_points_border_key()] = "black"
+    out = [(points, points_meta, "points")]
+    if show_links and vecs:
+        vectors = np.asarray(vecs, dtype=float).reshape(-1, 2, 3)
+        vectors_meta = {
+            "name": f"{name} pairs",
+            "edge_color": "magenta",
+            "edge_width": 2,
+            "length": 1,
+            "vector_style": "line",
+        }
+        out.append((vectors, vectors_meta, "vectors"))
+    return out
