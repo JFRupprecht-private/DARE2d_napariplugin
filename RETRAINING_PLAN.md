@@ -34,6 +34,18 @@ curated weights. The plugin MUST instead:
   plugin's reg/seg dirs at `models/<run_name>/{regression,segmentation}_checkpoints` (same
   layout as `find_checkpoints`), leaving the curated `best/` untouched.
 
+## DECISIONS TAKEN — training backends (2026-06-20, updated)
+- **Build BOTH training backends, with a toggle** in the napari training module (mirrors the
+  inference Keras/PyTorch switch):
+  - **TF backend** = the validated `retrain/train_split.py` driver, run on **CPU (Windows)** or
+    **GPU via WSL2**. Zero training-divergence risk (reuses DARE2D's own training).
+  - **PyTorch backend** = native-Windows GPU training reusing the faithful `Regression2dTorch` /
+    `SegmentationUnetTorch` + the same prepared data; torch `Dataset`/losses/trainer (no WSL).
+- **`DARE2d-main/` stays untouched.** If a change there is ever unavoidable, **duplicate it to
+  `DARE2d-main_TF/`** and edit the copy (never the original).
+- Both backends write to **`models/{run}/`** with the never-overwrite guard; TF emits `best.h5`,
+  torch emits `.pt` (directly usable by the torch inference backend; export to `.onnx`/`.h5` optional).
+
 ## DECISIONS TAKEN (2026-06-20)
 - **Backend for v1 = TF reuse** (Phase A), then PyTorch GPU port later (Phase B).
 - **WSL2 + CUDA is available** → Phase A trains on the **GPU inside WSL2** with the
@@ -71,6 +83,29 @@ runs a SINGLE split. `DARE2d-main/` stays read-only.
 1 movie `.tiff` + `division_position{i}.npy` (int `[x,y,frame]`, paired rows). `set_8`
 there is the same movie+annotations as the demo `set_8/` at the repo root.
 `config/batch_training/*.yaml` already maps `set_1..8 -> ${data_dir}/set_N`.
+
+## 2-bis. Data pipeline — PREPROCESSING REQUIRED (discovered while building)
+The training generators do **not** read the raw `movie.tiff + division_position*.npy`.
+They read a **preprocessed per-frame layout**:
+```
+<set>/[crop_<n>/]  previmg/{i}.tif  currimg/{i}.tif  nextimg/{i}.tif  div_location/{i}.npy
+```
+- **Converter = `annotator/preprocessing/format_gastru.py`** (reuse, read-only): for each
+  annotated frame `f`, writes prev=`stack[f-2]`, curr=`stack[f-1]`, next=`stack[f]`, and
+  `div_location` = the `[x,y]` pairs (drops the frame column). `crop_size>0` tiles each frame
+  into `crop_size²` non-overlapping crops (assigning bipoints to the crop containing their
+  centre). The neuroepithelium sets are RAW → preprocessing must run first (set_3 has empty
+  stub folders; others none).
+- **Segmentation masks are NOT on disk** — `seg_2dataset` builds them **on the fly** from the
+  bipoints (`cv2.circle` at `cell_radius`, `type_mask=center`). So seg needs the *same* inputs
+  as regression (no `currlabel/`, no MATLAB). `convertomask3.m` is an unrelated overlay tool.
+- **crop_size**: seg U-Net input = 256², reg crops 64² around centres → preprocess at
+  **`crop_size=256`** (currimg = 256² tiles; reg dataset crops 64² from them). To confirm vs the
+  originally-trained data; exposed as a parameter.
+- **Write derived data to a separate location** (e.g. `data/prepared/<set>/`), leaving the raw
+  sets pristine; cache it so preprocessing runs once per set.
+
+Revised pipeline: **preprocess (once) → leave-one-out train → test → `models/{run}/`**.
 
 ## 3. Plugin UX (proposed)
 Widget **"DARE2D retraining"**:
@@ -130,6 +165,19 @@ longer-lived and killable.
     small numpy ops** → framework-agnostic, largely reusable.
   - **Trainer**: a plain torch loop (rmsprop for reg / adam for seg, epochs × steps,
     checkpoint best on val loss, optional early stop).
+  - **Exact data specs to reproduce (gathered from the generators):**
+    - *Regression sample*: one 64² crop per bipoint, centred on the bipoint **midpoint**
+      ((p1+p2)/2) of the prepared (prev,curr,next) image (zero-padded); skip if centre too
+      near the border. Input = **min-max normalised** crop `(64,64,3)`. Target:
+      `length_output = dist(p1,p2)/64`; `angle_output = [cos(2θ), sin(2θ)]` where
+      θ = (p1→p2 angle in deg)/180·π mod π (the "twice-angle" trick). Aug = albumentations
+      with `keypoints` (format yx), only kept if it still yields 2 points.
+    - *Segmentation sample*: input = min-max normalised `(256,256,3)`; mask built on the fly
+      `cv2.circle(center=(p1+p2)/2, radius=cell_radius=8)` (`type_mask=center`), `/255`→{0,1};
+      `random_crop` to 256² + albumentations(image, mask). Loss = **weighted BCE**:
+      `weight = mask*weight_scaling(=4) + 1`, BCE on the sigmoid prob, mean.
+    - Validate each torch `Dataset` against the TF generator (same prepared sample → same
+      X/Y within fp tol), like the inference parity gate.
   - **Validation gate**: a torch retrain on a fixed seed should land near the TF run's test
     metrics; minimally, the produced checkpoint must pass the existing inference parity vs
     its own framework.

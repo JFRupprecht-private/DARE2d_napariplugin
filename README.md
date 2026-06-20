@@ -41,6 +41,7 @@ models/                      # NOT in git — checkpoints
 data/                        # NOT in git — training dataset (neuroepithelium set_1..8)
 set_8/                       # NOT in git — example stack + annotations (demo / annotation viewer)
 dare2d-torch/                # GPU inference: ONNX (done) + full PyTorch port (reg + seg)
+retrain/                     # leave-one-out retraining: prepare.py + train_split.py (TF backend)
 HANDOFF.md                   # full build log / decisions / gotchas
 PYTORCH_MIGRATION.md         # migration plan + status (ONNX/GPU + PyTorch port)
 RETRAINING_PLAN.md           # plan for the retraining plugin (leave-one-out)
