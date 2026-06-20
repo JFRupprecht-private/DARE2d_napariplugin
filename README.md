@@ -10,6 +10,19 @@ DARE2D itself is a TF/Keras codebase (`DARE2d-main/`) that analyses `.tif` stack
 **in process** (no subprocess/CLI, no disk round-trip) behind a small napari-free
 API, plus a magicgui dock widget.
 
+## Credits & citation
+
+This plugin wraps **DARE2D**, developed by **Romain Karpinski, Alice Gros,
+Marc Karnat, Qazi Saaheelur Rahaman, Jules Vanaret, Mehdi Saadaoui, Sham L. Tlili
+and Jean-François Rupprecht**.
+
+If you use this plugin or DARE2D in your research, **please cite the preprint**:
+
+> Karpinski R., Gros A., Karnat M., Saaheelur Rahaman Q., Vanaret J., Saadaoui M.,
+> Tlili S. L., Rupprecht J.-F. (2026). *DARE: Division Axis and Region Estimation
+> from 2D and 3D Time-Lapse Images.* bioRxiv.
+> https://doi.org/10.1101/2024.02.05.578987
+
 ## Repository layout
 
 ```
