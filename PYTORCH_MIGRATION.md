@@ -155,6 +155,8 @@ avec la **régression d'abord** (gain facile) puis le **U-Net** en pesant le ris
 ---
 
 ## 9-bis. Découpage retenu (bi-pistes, inférence seule) ← PLAN DE RÉFÉRENCE
+> **Tout le travail des deux pistes vit dans un NOUVEAU dossier `dare2d-torch/` (voir §13).
+> `DARE2d-main/` n'est jamais modifié (lecture seule via import).**
 
 ### Piste 1 — ONNX + GPU maintenant (priorité, risque faible)
 But : exploiter la RTX 5000 sans réécrire les modèles ni risquer les poids.
@@ -215,3 +217,85 @@ But : codebase torch propre, inférence seule. Réutilise l'oracle TF (et/ou ONN
 3. **Périmètre** : **inférence seule** (plugin). Entraînement **hors périmètre**.
 
 → Plan d'exécution = **§9-bis** (Piste 1 ONNX puis Piste 2 PyTorch).
+
+---
+
+## 13. Nouveau dossier auto-portant — `DARE2d-main/` INTACT (contrainte ferme)
+**Règle :** tout le portage (ONNX + torch) va dans un **nouveau dossier `dare2d-torch/`**
+(frère de `napari-dare2d/`). `DARE2d-main/` est **lu** (import Hydra + classes modèle + helpers
+numpy) mais **jamais édité**. Le plugin `napari-dare2d` n'est pas modifié pour le cœur du portage
+(un sélecteur de backend dans le widget serait une retouche mineure *ultérieure et optionnelle*).
+
+**Astuce d'intégration (zéro édition de l'existant) :** les backends exposent **la même interface
+que le wrapper Keras** — un objet avec `.model.predict(x_nhwc, verbose=0) -> numpy` (et la régression
+renvoie `(length, angle)`). Du coup `napari_dare2d._api.infer_stack` **et** `inference_strategy`
+(dans `scripts/`) sont **réutilisés verbatim** : on leur passe juste des « modèles » backend au lieu
+des wrappers Keras. Le préprocessing (`equalizeHist`, `/255`, fenêtre glissante, `extract_centers`,
+`convert_values`) reste **partagé et inchangé** → pas de divergence de prépro possible.
+
+**Layout proposé :**
+```
+dare2d-torch/                 # NOUVEAU — DARE2d-main reste intact
+  README.md
+  hyperparams.py              # archi LUE depuis DARE2d-main/config (n_stages=4, n_start_filters=128,
+                              #   crop=64, backbone=resnet18, in_channels=3) — redéclarée ici, pas d'édition amont
+  models_torch.py            # Regression2dTorch(nn.Module) + build_unet (smp.Unet resnet18)
+  keras_dump.py     [env TF] # Hydra+load_weights (comme _api.build_models) -> dump poids .npz + SHAPES
+  convert_to_torch.py [torch]# .npz -> state_dict torch (+ .pt) ; vérifie shapes AVANT transfert
+  export_onnx.py    [env TF] # Keras -> SavedModel -> tf2onnx -> .onnx (batch dynamique, opset>=13)
+  backends.py                # OnnxModel / TorchModel : interface `.model.predict` compatible Keras
+  verify_parity.py           # oracle TF vs onnx/torch sur le set 8 (tolérances réalistes, cf. §14-C)
+  weights_onnx/ weights_pt/  # sorties (à gitignorer)
+```
+- **Garde-fou archi :** `keras_dump.py` dump aussi les *shapes* de chaque couche ; `convert_to_torch.py`
+  asserte la correspondance des shapes **avant** de copier (attrape tout écart d'hyperparamètres —
+  p.ex. n_stages 4 vs 2 — immédiatement, pas en silence).
+- Les hyperparamètres viennent du **même `compose(experiment=…)`** que le build TF, pour éviter toute
+  dérive (le modèle de régression effectif est 4 stages / 128 filtres, **pas** le 2/64 du yaml modèle nu).
+
+---
+
+## 14. Ce qui peut casser — registre détaillé (relire AVANT de coder)
+
+### A. Piste ONNX (risque faible, mais pièges concrets)
+- **Ops resize/upsample custom** de `sm.Unet` → exporter en **opset ≥ 13** ; vérifier que `tf2onnx`
+  ne laisse pas d'op non convertie.
+- **Batch dynamique** : la fenêtre glissante envoie un nombre **variable** de patchs (49/frame @1024²) →
+  marquer l'axe batch comme dynamique à l'export, sinon l'inférence casse sur la taille.
+- **Provider CUDA silencieux** : `onnxruntime-gpu` **retombe en CPU** sans erreur si CUDA/cuDNN
+  manquent ou ne matchent pas → **asserter** `'CUDAExecutionProvider' in ort.get_available_providers()`
+  **et** vérifier le device réellement utilisé. Aligner les versions CUDA/cuDNN d'ORT avec le driver.
+- **Layout & sorties** : `tf2onnx` préserve le NHWC ; le wrapper passe le même array. Bien récupérer
+  les **noms d'E/S** et **l'ordre des 2 sorties** régression (`length` puis `angle`).
+
+### B. Piste conversion de poids torch (risque élevé)
+- **#1 piège silencieux — ordre du Flatten (régression)** : Keras aplati en **NHWC** (canal = axe le
+  plus rapide), torch aplati un tenseur **NCHW** (canal = le plus lent). Sans correction, la tête Dense
+  lit des features **permutées** → sorties fausses *sans erreur*. Fix : `x.permute(0,2,3,1).contiguous()`
+  **avant** `flatten` côté torch (pour matcher Keras).
+- **Conv** : noyau **HWIO → OIHW** (`transpose(3,2,0,1)`) ; **Dense** : `(in,out) → (out,in)` ;
+  biais inchangés.
+- **BatchNorm eps** : Keras défaut **1e-3** vs torch **1e-5** → forcer `eps` torch = valeur réelle du
+  modèle sm (à relever), sinon biais numérique partout.
+- **`.eval()` obligatoire** : BN en stats courantes + pas de dropout. Oubli = sorties fausses (piège classique).
+- **U-Net resnet18 — encodeur TF ≠ torch** : le resnet18 de qubvel `classification_models` (TF) n'est
+  pas identique à `torchvision`/`smp` (stem 7×7, shortcuts). Surtout, le padding **`same` de TF est
+  asymétrique** au stride 2 (stem) alors que torch pad **symétrique** → **désalignement spatial**.
+  Mapping nom-à-nom + diff couche par couche obligatoires. **Fallback : garder l'ONNX pour la
+  segmentation** (poids exacts) et ne porter en torch que la régression.
+- **Upsampling** : `nearest` des deux côtés (sinon vérifier `mode`/`align_corners`). À 256×256 les
+  dimensions restent paires → les concats de skip s'alignent (OK).
+
+### C. Transverse (les deux pistes)
+- **Parité réaliste, jamais bit-exact** : conv TF (oneDNN) vs cuDNN/ORT divergent ~1e-5–1e-3, amplifiés
+  par le **seuil 0.5** (peut flipper des pixels de bord → **±1-2 détections**). Gate = comparer la
+  **carte de proba seg pré-seuil** (tolérance relative) **ET** les détections finales (centres à quelques
+  px, comptes à ±1-2). Une exigence bit-exacte échouerait à tort.
+- **Deux envs en parallèle** : la conversion exige l'**oracle TF** (ancien env) + le nouvel env
+  torch/onnx ; pont par fichiers (`.npz` de poids, `.npy` d'activations). Prévoir l'orchestration.
+- **Pas de données d'entraînement** → impossible de re-régler : la **seule vérité** est la parité avec TF.
+  Si la parité seg est inatteignable → ONNX (poids exacts) plutôt que s'acharner.
+- **Frontière d'axes** : NHWC (TF/ONNX) vs NCHW (torch) au seul appel modèle ; le wrapper convertit.
+  Une erreur ici serait rattrapée par la gate de parité.
+- **Détection silencieuse de régression de comportement** : toujours comparer au **TF d'origine**,
+  jamais à l'ancienne référence `set_8/*.npy` (`[x,y,2]`, autre pipeline).
