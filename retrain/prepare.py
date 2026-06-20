@@ -61,13 +61,23 @@ def _save(out_dir: Path, index: int, prev, curr, nxt, pts):
 
 
 def prepare_set(set_dir, out_dir, crop_size=256, force=False, progress_cb=None):
-    """Build the training layout for one set. Returns (out_dir, n_samples)."""
+    """Build the training layout for one set. Returns (out_dir, n_samples).
+
+    Cache only when ALL subdirs hold the same (non-zero) count -- an interrupted
+    prep (e.g. disk full) leaves inconsistent counts and MUST be rebuilt, else the
+    generator chokes on mismatched prev/curr/next shapes.
+    """
+    import shutil
+
     set_dir, out_dir = Path(set_dir), Path(out_dir)
-    curr = out_dir / "currimg"
-    if not force and curr.exists() and any(curr.glob("*.tif")):
-        n = sum(1 for _ in curr.glob("*.tif"))
-        return out_dir, n  # cached
+    counts = {s: len(list((out_dir / s).glob("*.*"))) if (out_dir / s).exists() else 0
+              for s in _SUBDIRS}
+    if not force and counts["currimg"] > 0 and len(set(counts.values())) == 1:
+        return out_dir, counts["currimg"]  # cached & complete
+    # (re)build from scratch: clear any partial/stale output first
     for s in _SUBDIRS:
+        if (out_dir / s).exists():
+            shutil.rmtree(out_dir / s)
         (out_dir / s).mkdir(parents=True, exist_ok=True)
 
     movie = find_movie(set_dir)
