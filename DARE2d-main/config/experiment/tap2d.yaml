@@ -1,0 +1,41 @@
+# @package _global_
+
+# TO EXECUTE THIS EXPERIMENT:
+# python script/train.py experiment=center_detection
+
+defaults:
+  - override /datamodule: tap2d.yaml
+  - override /model: tap2d_model.yaml
+  - override /callbacks:
+      - default
+      - tap2d
+  - override /logger: null
+  - override /trainer: basic_trainer.yaml
+
+# All parameters below will be merged with parameters from default configuration
+# set above, this allows you to overwrite only specified parameters
+
+# name of the run, determines folder name in logs
+name: tap_2d
+date: ${now:%Y-%m-%d}_${now:%H-%M-%S}
+
+seed: 12345
+
+train: True
+test: True
+
+data_dir: ${original_work_dir}/data/
+epochs: 100
+steps_per_epoch: 1000
+crop_size: 256
+batch_size: 4
+
+trainer:
+  epochs: ${epochs}
+  steps_per_epoch: ${steps_per_epoch}
+  validation_steps: 1000
+
+model:
+  optimizer:
+    learning_rate: 0.001
+    weight_decay: 0.00001

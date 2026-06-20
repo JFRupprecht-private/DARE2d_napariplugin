@@ -1,0 +1,421 @@
+"""Thin in-process API over the DARE2D inference + consensus pipeline.
+
+The shipping DARE2D entry points are CLIs (click for inference, argparse for
+postprocessing) that the notebook drives via ``subprocess``. A napari widget
+needs to call the same logic *in process* (image arrays in memory, progress
+callbacks, no disk round-trip), so this module exposes a few plain functions
+that REUSE the existing code rather than reimplementing it:
+
+  - model architectures are built via the project's Hydra configs;
+  - the per-frame sliding-window helpers are imported from the inference
+    script (``inference_strategy``, ``crop_img_from_center``);
+  - the consensus aggregation is imported from the postprocessing script.
+
+DARE2d-main/ itself is left untouched.
+"""
+
+from __future__ import annotations
+
+import os
+import sys
+from collections import defaultdict
+from pathlib import Path
+
+# segmentation_models must see the framework BEFORE it is imported anywhere.
+os.environ.setdefault("SM_FRAMEWORK", "tf.keras")
+
+# --- locate the DARE2D repo that this plugin wraps -------------------------
+# Layout (self-contained project):
+#   DARE2Dnapariplugin/                 <- PROJECT_ROOT
+#     DARE2d-main/                       (the wrapped code + config)
+#     regression_checkpoints/ segmentation_checkpoints/
+#     napari-dare2d/napari_dare2d/_api.py  <- this file
+# ponytail: paths are derived from __file__ relative to that fixed layout.
+# Ceiling: move the package elsewhere and you must pass config_dir / checkpoint
+# dirs explicitly (the widget already exposes the checkpoint dirs as inputs).
+_HERE = Path(__file__).resolve().parent
+PROJECT_ROOT = _HERE.parents[1]
+_REPO = PROJECT_ROOT / "DARE2d-main"
+CONFIG_DIR = str(_REPO / "config")
+DEFAULT_REG_DIR = PROJECT_ROOT / "regression_checkpoints"
+DEFAULT_SEG_DIR = PROJECT_ROOT / "segmentation_checkpoints"
+
+# scripts/ has no __init__.py; it imports as an implicit namespace package
+# once the repo root is on sys.path.
+if str(_REPO) not in sys.path:
+    sys.path.insert(0, str(_REPO))
+
+import cv2
+import hydra
+import numpy as np
+from hydra import compose, initialize_config_dir
+from hydra.core.global_hydra import GlobalHydra
+from hydra.core.hydra_config import HydraConfig
+from omegaconf import OmegaConf
+
+from dare2d.datamodule.post_processing.regression2d_pp import convert_values
+from dare2d.evaluation.center_metrics import extract_centers
+from scripts.inference.multistage_detection2d import (  # noqa: E402 (needs sys.path)
+    crop_img_from_center,
+    inference_strategy,
+)
+from scripts.postprocessing.main import (  # noqa: E402
+    aggregate_cluster_pick_signed,
+    cluster_hdbscan,
+    detect_angle_units_and_convert,
+)
+
+__all__ = [
+    "build_models",
+    "infer_stack",
+    "run_ensemble",
+    "consensus",
+    "detections_to_points",
+    "detections_to_vectors",
+    "to_layer_data",
+    "find_checkpoints",
+    "parse_sets",
+    "resolve_frames",
+    "CONFIG_DIR",
+    "DEFAULT_REG_DIR",
+    "DEFAULT_SEG_DIR",
+]
+
+
+# ---------------------------------------------------------------------------
+# Input resolution helpers (used by the widget; pure / no TF)
+# ---------------------------------------------------------------------------
+def parse_sets(spec, available=range(1, 9)):
+    """Parse a model-set spec like ``"1-8"``, ``"1,3,5"`` or ``"8"`` -> sorted ints.
+
+    Values are intersected with ``available`` so a bad entry can't request a
+    non-existent set.
+    """
+    avail = set(available)
+    out = set()
+    for tok in str(spec).replace(" ", "").split(","):
+        if not tok:
+            continue
+        if "-" in tok:
+            a, b = tok.split("-", 1)
+            out.update(range(int(a), int(b) + 1))
+        else:
+            out.add(int(tok))
+    sets = sorted(out & avail)
+    if not sets:
+        raise ValueError(f"no valid model sets in {spec!r} (available: {sorted(avail)})")
+    return sets
+
+
+def find_checkpoints(reg_dir, seg_dir, sets):
+    """Resolve ``best.h5`` paths for the given model ``sets``.
+
+    Expects the shipping layout ``<dir>/checkpoints_set_{n}_all_but_target/best.h5``.
+    Raises FileNotFoundError naming the first missing file.
+    """
+    reg_dir, seg_dir = Path(reg_dir), Path(seg_dir)
+    reg, seg = [], []
+    for n in sets:
+        r = reg_dir / f"checkpoints_set_{n}_all_but_target" / "best.h5"
+        s = seg_dir / f"checkpoints_set_{n}_all_but_target" / "best.h5"
+        if not r.exists():
+            raise FileNotFoundError(f"regression checkpoint missing: {r}")
+        if not s.exists():
+            raise FileNotFoundError(f"segmentation checkpoint missing: {s}")
+        reg.append(str(r))
+        seg.append(str(s))
+    return reg, seg
+
+
+def resolve_frames(n_frames, start=0, end=-1):
+    """Clamp a [start, end] frame range to ``[0, n_frames)`` -> list of indices.
+
+    ``end == -1`` means the last frame. ``end`` is inclusive.
+    """
+    start = max(0, int(start))
+    end = n_frames - 1 if end is None or end < 0 else min(int(end), n_frames - 1)
+    if start > end:
+        raise ValueError(f"empty frame range: start={start} > end={end}")
+    return list(range(start, end + 1))
+
+
+# ---------------------------------------------------------------------------
+# Model building (Hydra)
+# ---------------------------------------------------------------------------
+def _build_model(experiment: str, weights: str | None, config_dir: str = CONFIG_DIR):
+    """Instantiate one model wrapper from its Hydra experiment config.
+
+    Uses ``initialize_config_dir`` (absolute path) instead of the script's
+    ``initialize(config_path="../../config")`` which is resolved relative to
+    the *calling file* and breaks when called from a plugin. GlobalHydra is a
+    process-wide singleton, so it is cleared around each build to stay
+    re-entrant across repeated runs inside a long-lived napari session.
+    """
+    GlobalHydra.instance().clear()
+    try:
+        with initialize_config_dir(version_base=None, config_dir=config_dir):
+            cfg = compose(
+                config_name="train",
+                overrides=[f"experiment={experiment}"],
+                return_hydra_config=True,
+            )
+            HydraConfig.instance().set_config(cfg)
+            cfg = OmegaConf.create(cfg)
+            model = hydra.utils.instantiate(cfg.model)
+    finally:
+        GlobalHydra.instance().clear()
+
+    if weights is not None:
+        # .h5 are weights only (load_weights, not load_model) -> no custom
+        # objects needed; the architecture above (incl. sm.Unet) must match.
+        model.model.load_weights(weights)
+    return model
+
+
+def build_models(reg_ckpt: str, seg_ckpt: str, config_dir: str = CONFIG_DIR):
+    """Return ``(regression_model, segmentation_model)`` wrappers."""
+    reg = _build_model("regression2d", reg_ckpt, config_dir)
+    seg = _build_model("segmentation2d", seg_ckpt, config_dir)
+    return reg, seg
+
+
+# ---------------------------------------------------------------------------
+# Single-model inference over a stack
+# ---------------------------------------------------------------------------
+def infer_stack(
+    stack,
+    reg_model,
+    seg_model,
+    frames=None,
+    progress_cb=None,
+    window_size: int = 256,
+    crop_size: int = 64,
+):
+    """Run the two-stage detection on a ``(T, Y, X)`` stack.
+
+    Returns ``{frame_index: [ {x, y, angle, length}, ... ]}`` keyed by the
+    0-based frame index. This is the body of ``multistage_detection2d.main``
+    with the disk I/O and visualization stripped out.
+
+    ponytail: assumes 8-bit input (cv2.equalizeHist + /255), like the original
+    script. Ceiling: 16-bit stacks would need rescaling first.
+    """
+    stack = np.asarray(stack)
+    if stack.ndim != 3:
+        raise ValueError(f"expected a (T, Y, X) stack, got shape {stack.shape}")
+    if stack.dtype != np.uint8:
+        raise ValueError(f"expected 8-bit stack, got dtype {stack.dtype}")
+
+    n_frames = stack.shape[0]
+    if frames is None:
+        frames = range(n_frames)
+    frames = list(frames)
+    half = crop_size // 2
+
+    results = {}
+    for n, i in enumerate(frames):
+        prev = stack[i - 1] if i > 0 else stack[i]
+        curr = stack[i]
+        nxt = stack[i + 1] if i < n_frames - 1 else stack[i]
+
+        prev = cv2.equalizeHist(prev)
+        curr = cv2.equalizeHist(curr)
+        nxt = cv2.equalizeHist(nxt)
+
+        x = np.stack([prev, curr, nxt], axis=-1).astype(np.float32) / 255.0
+
+        seg_raw = inference_strategy(x, seg_model, window_size=window_size)
+        seg_bin = np.where(seg_raw > 0.5, 255, 0).astype(np.uint8)
+        centers = extract_centers(seg_bin)
+
+        xp = np.pad(
+            x, ((half, half), (half, half), (0, 0)), mode="constant", constant_values=0
+        )
+
+        dets = []
+        for c in centers:
+            inverted_center = (c[1], c[0])
+            crop = crop_img_from_center(xp, inverted_center, half)
+            length_pred, angle_pred = reg_model.model.predict(
+                np.expand_dims(crop, axis=0), verbose=0
+            )
+            values = convert_values(length_pred, angle_pred, im_size=crop_size)
+            dets.append(
+                {
+                    "x": int(c[0]),
+                    "y": int(c[1]),
+                    "angle": float(values[0, 1]),
+                    "length": float(values[0, 0]),
+                }
+            )
+        results[i] = dets
+        if progress_cb is not None:
+            progress_cb(n + 1, len(frames))
+
+    return results
+
+
+# ---------------------------------------------------------------------------
+# Ensemble (8 model sets) -> detections in the shape the consensus expects
+# ---------------------------------------------------------------------------
+def run_ensemble(stack, reg_ckpts, seg_ckpts, frames=None, config_dir=CONFIG_DIR,
+                 progress_cb=None):
+    """Run every model set and collect detections.
+
+    Returns ``{frame_1based: [(model_id, x, y, angle, length), ...]}`` -- the
+    exact structure ``consensus`` (and the original ``process_all_frames``)
+    consumes. Frame keys are 1-based to match the CLI's ``division_position{i+1}``.
+    """
+    import tensorflow.keras.backend as K
+
+    if len(reg_ckpts) != len(seg_ckpts):
+        raise ValueError("reg_ckpts and seg_ckpts must have the same length")
+
+    all_dets = defaultdict(list)
+    n_models = len(reg_ckpts)
+    for m, (r, s) in enumerate(zip(reg_ckpts, seg_ckpts), start=1):
+        reg, seg = build_models(r, s, config_dir)
+        res = infer_stack(stack, reg, seg, frames=frames)
+        for i, dets in res.items():
+            for d in dets:
+                all_dets[i + 1].append(
+                    (m, float(d["x"]), float(d["y"]), float(d["angle"]), float(d["length"]))
+                )
+        if progress_cb is not None:
+            progress_cb(m, n_models)
+        del reg, seg
+        K.clear_session()  # free graph between model sets (CPU/RAM hygiene)
+    return dict(all_dets)
+
+
+# ---------------------------------------------------------------------------
+# Consensus across models (in memory, no file I/O / no drawing)
+# ---------------------------------------------------------------------------
+def consensus(all_dets, n_frames, eps=10, min_models=6, num_models=8, angle_mode="auto"):
+    """Aggregate per-model detections into per-frame consensus detections.
+
+    Returns ``{frame_1based: [consensus_dict, ...]}`` where each consensus dict
+    has x, y, angle, angle_std_deg, length, length_std, pos_std, n_models, ...
+
+    ponytail: mirrors the clustering/aggregation core of
+    ``scripts.postprocessing.main.process_all_frames`` but drops the wedge/halo
+    drawing, TIFF/CSV writing and temporal dedup, which a napari overlay does
+    not need. Reuses the same aggregation primitives so results stay identical.
+    """
+    # work on a shallow copy: detect_angle_units_and_convert mutates in place.
+    dets = {k: list(v) for k, v in all_dets.items()}
+    detect_angle_units_and_convert(dets, mode=angle_mode)
+
+    out = {}
+    for fidx in range(1, n_frames + 1):
+        items = dets.get(fidx, [])
+        pts = (
+            np.array([[d[1], d[2]] for d in items], dtype=float)
+            if len(items) > 0
+            else np.empty((0, 2))
+        )
+        labels = cluster_hdbscan(pts, eps=eps, min_cluster_size=2, min_samples=1)
+        cons = []
+        if labels.size > 0:
+            for lab in np.unique(labels):
+                idxs = np.where(labels == lab)[0]
+                cluster_items = [items[i] for i in idxs]
+                c = aggregate_cluster_pick_signed(
+                    cluster_items, min_models=min_models, total_models=num_models
+                )
+                if c is not None:
+                    cons.append(c)
+        out[fidx] = cons
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Map detections / consensus -> napari layer data
+# ---------------------------------------------------------------------------
+# Both infer_stack detections and consensus() dicts share the keys
+# {x, y, angle, length}, so the same mapping serves both. The ONLY difference
+# is the frame-key base: infer_stack keys are 0-based (use frame_base=0),
+# consensus keys are 1-based (use frame_base=1). napari frame index t = key - frame_base.
+#
+# Coordinate convention (locked in step 3): detection x = COLUMN, y = ROW, so a
+# napari point over a (T,Y,X) stack is (t, y, x). The division axis direction in
+# (row, col) is (cos(angle), sin(angle)) -- matching the script's project_point.
+
+_PROP_KEYS = ("angle", "length", "angle_std_deg", "length_std", "pos_std",
+              "n_models", "support_fraction")
+
+
+def _iter_dets(per_frame, frame_base):
+    for key in sorted(per_frame):
+        t = int(key) - frame_base
+        for d in per_frame[key]:
+            yield t, d
+
+
+def detections_to_points(per_frame, frame_base=0):
+    """``{frame: [{x,y,angle,length,...}]}`` -> (points ``(N,3)`` ``[t,y,x]``, properties dict).
+
+    ``properties`` carries whatever of _PROP_KEYS each detection has (angle &
+    length always; consensus dicts also bring the std/support fields), so a
+    widget can colour/size points by them.
+    """
+    pts = []
+    props = {k: [] for k in _PROP_KEYS}
+    present = set()
+    for t, d in _iter_dets(per_frame, frame_base):
+        pts.append((t, float(d["y"]), float(d["x"])))
+        for k in _PROP_KEYS:
+            if k in d:
+                props[k].append(float(d[k]))
+                present.add(k)
+    points = np.asarray(pts, dtype=float).reshape(-1, 3)
+    properties = {k: np.asarray(props[k], dtype=float) for k in present}
+    return points, properties
+
+
+def detections_to_vectors(per_frame, frame_base=0):
+    """``{frame: [{x,y,angle,length}]}`` -> vectors ``(N,2,3)``.
+
+    ``v[:,0]`` = origin ``(t, y, x)`` at one rod end, ``v[:,1]`` = full direction
+    ``(0, cos·L, sin·L)``. With a Vectors layer ``length=1`` this draws the rod
+    from ``centre-half`` to ``centre+half`` (same segment as the script's p1-p2),
+    i.e. the rod passes through the detection centre.
+    """
+    vecs = []
+    for t, d in _iter_dets(per_frame, frame_base):
+        th = np.radians(float(d["angle"]))
+        L = float(d["length"])
+        drow = np.cos(th) * L
+        dcol = np.sin(th) * L
+        origin = (t, float(d["y"]) - drow / 2.0, float(d["x"]) - dcol / 2.0)
+        direction = (0.0, drow, dcol)
+        vecs.append([origin, direction])
+    return np.asarray(vecs, dtype=float).reshape(-1, 2, 3)
+
+
+def to_layer_data(per_frame, frame_base=0, name="DARE2D", point_size=24,
+                  edge_width=5, vector_style="line"):
+    """Build napari ``LayerDataTuple``s: one Points (centres) + one Vectors (axes).
+
+    Returns ``[(points, meta, "points"), (vectors, meta, "vectors")]`` -- directly
+    returnable from a magicgui widget annotated ``-> List[LayerDataTuple]``.
+    Pure data (no napari import needed here).
+    """
+    points, properties = detections_to_points(per_frame, frame_base)
+    vectors = detections_to_vectors(per_frame, frame_base)
+    points_meta = {
+        "name": f"{name} centers",
+        "size": point_size,
+        "face_color": "red",
+        "edge_color": "white",  # napari 0.4.18 name (renamed to border_color in >=0.5)
+    }
+    if properties:
+        points_meta["properties"] = properties
+    vectors_meta = {
+        "name": f"{name} axes",
+        "edge_width": edge_width,
+        "edge_color": "cyan",
+        "length": 1,
+        "vector_style": vector_style,  # "line" (no arrowhead) — the division axis
+    }
+    return [(points, points_meta, "points"), (vectors, vectors_meta, "vectors")]

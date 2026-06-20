@@ -1,0 +1,22 @@
+# --- Large model weights & data (exceed GitHub's 100 MB/file limit; not for VCS) ---
+regression_checkpoints/
+segmentation_checkpoints/
+set_8/
+*.h5
+*.tif
+*.tiff
+*.npy
+
+# --- Python caches / build artifacts ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg-link
+.ipynb_checkpoints/
+build/
+dist/
+.pytest_cache/
+
+# --- OS / editor noise ---
+.DS_Store
+Thumbs.db

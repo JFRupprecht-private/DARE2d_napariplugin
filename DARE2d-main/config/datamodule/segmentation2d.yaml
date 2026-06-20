@@ -1,0 +1,15 @@
+_target_: dare2d.datamodule.segmentation2d.Segmentation2dDatamodule
+
+defaults:
+  - generator@train: segmentation2d
+  - generator@val: segmentation2d
+  - generator@test: segmentation2d
+
+batch_size: ${batch_size}
+
+train:
+  data_folder: ${data_dir}/train
+val:
+  data_folder: ${data_dir}/val
+test:
+  data_folder: ${data_dir}/test

@@ -1,0 +1,8 @@
+# @package _global_
+
+hydra:
+  run:
+    dir: logs/experiments/runs/${name}/${date}
+  sweep:
+    dir: logs/experiments/multiruns/${name}/${date}
+    subdir: ${hydra.job.num}

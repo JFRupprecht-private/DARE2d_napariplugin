@@ -1,0 +1,5 @@
+defaults:
+  - .@distance: center_distance
+  - .@recall: center_recall
+  - .@precision: center_precision
+  - .@fmeasure: center_fmeasure

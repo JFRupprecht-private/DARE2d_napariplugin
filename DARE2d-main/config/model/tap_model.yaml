@@ -1,0 +1,9 @@
+_target_: dare2d.model.tap3d.Tap3D
+
+defaults:
+  - losses: binary_crossentropy.yaml
+  - optimizer: adam.yaml
+  - losses@metrics: binary_crossentropy.yaml
+  - losses@evaluations: binary_crossentropy.yaml
+
+target_size: ${crop_size}

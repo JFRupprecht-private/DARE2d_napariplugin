@@ -1,0 +1,38 @@
+model_checkpoint:
+  _target_: tensorflow.keras.callbacks.ModelCheckpoint
+  filepath: checkpoints/best.h5
+  monitor: val_loss
+  save_best_only: true
+  mode: min
+  verbose: 1
+
+reduce_lr:
+  _target_: tensorflow.keras.callbacks.ReduceLROnPlateau
+  monitor: loss
+  factor: 0.8
+  patience: 10
+  mode: "min"
+  verbose: 1
+  min_lr: 0.000001
+
+last_model:
+  _target_: dare2d.callbacks.savelast_callback.SaveLastModel
+
+tensorboard:
+  _target_: tensorflow.keras.callbacks.TensorBoard
+  log_dir: ${original_work_dir}/logs/tensorboard
+
+csv_logger:
+  _target_: tensorflow.keras.callbacks.CSVLogger
+  filename: history.log
+
+nan_stop:
+  _target_: tensorflow.keras.callbacks.TerminateOnNaN
+
+early_stopping:
+  _target_: tensorflow.keras.callbacks.EarlyStopping
+  monitor: "val_loss"
+  min_delta: 0
+  patience: ${patience}
+  verbose: 0
+  mode: "min"

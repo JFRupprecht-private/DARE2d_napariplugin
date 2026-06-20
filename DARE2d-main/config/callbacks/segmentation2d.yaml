@@ -1,0 +1,3 @@
+regression_display:
+  _target_: dare2d.callbacks.display_callback.DisplayCallback
+  log_dir: ${original_work_dir}/logs/tensorboard

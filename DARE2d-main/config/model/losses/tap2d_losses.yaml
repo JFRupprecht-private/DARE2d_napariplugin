@@ -1,0 +1,3 @@
+defaults:
+  - ../losses@classification_head: categorical_crossentropy
+  - ../losses@feature_head: decorrelation

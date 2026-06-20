@@ -1,0 +1,2 @@
+_target_: dare2d.evaluation.center_metrics.FMeasureMetric
+max_distance: ${max_center_distance}

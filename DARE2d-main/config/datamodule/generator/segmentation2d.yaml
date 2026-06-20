@@ -1,0 +1,9 @@
+_target_: dare2d.datamodule.generator._2d.seg_2dataset.Segmentation2Dataset
+
+data_folder: ${data_dir}
+cell_radius: ${cell_radius}
+type_mask: ${type_mask}
+renorm: ${renorm}
+input_channels: ${input_channels}
+crop_size: ${crop_size}
+scale: ${scale}

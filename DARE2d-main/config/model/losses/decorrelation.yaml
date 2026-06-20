@@ -1,0 +1,2 @@
+_target_: dare2d.losses.decor_loss.DecorrelationLoss
+temperature: 0.2

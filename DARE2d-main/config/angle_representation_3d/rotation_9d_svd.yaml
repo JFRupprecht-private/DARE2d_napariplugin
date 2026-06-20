@@ -1,0 +1,8 @@
+loss:
+  _target_: dare2d.losses.3d_losses.svd_loss
+metric:
+  _target_: dare2d.losses.3d_losses.rot9_svd_metric
+name: "rotation_matrix_SVD"
+vec_size: 9
+model_vec_size: 9
+angle_activation: "linear"

@@ -1,0 +1,12 @@
+_target_: dare2d.model.regression2d_cnn.Regression2dCNN
+
+defaults:
+  - losses: regression2d_losses.yaml
+  - optimizer: rmsprop.yaml
+  - metrics: regression2d_metrics.yaml
+  # - metrics@evaluations: regression2d_metrics.yaml
+
+im_size: ${crop_size}
+channels: ${input_channels}
+n_stages: 2
+n_start_filters: 64

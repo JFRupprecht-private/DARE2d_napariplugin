@@ -1,0 +1,18 @@
+_target_: dare2d.datamodule.regression2d.Regression2dDatamodule
+
+defaults:
+  - generator@train: regression2d
+  - generator@val: regression2d
+  - generator@test: regression2d
+
+batch_size: ${batch_size}
+
+train:
+  data_folder: ${data_dir}/train
+  crop_size: ${crop_size}
+val:
+  data_folder: ${data_dir}/val
+  crop_size: ${crop_size}
+test:
+  data_folder: ${data_dir}/test
+  crop_size: ${crop_size}

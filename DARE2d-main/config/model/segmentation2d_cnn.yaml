@@ -1,0 +1,11 @@
+_target_: dare2d.model.segmentation2d_cnn.Segmentation2dCNN
+
+defaults:
+  - losses: pixelwise_crossentropy.yaml
+  - optimizer: adam.yaml
+  - metrics: pixelwise_crossentropy.yaml
+  - metrics@evaluations: center2d_metrics.yaml
+
+input_channels: ${input_channels}
+target_size: ${crop_size}
+backbone: resnet18

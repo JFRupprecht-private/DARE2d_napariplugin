@@ -1,0 +1,14 @@
+_target_: dare2d.trainer.basic_trainer.Trainer
+
+epochs: 1
+workers: 12
+use_multiprocessing: true
+steps_per_epoch: 100
+resume_from_checkpoint: null
+verbose: 1
+experiment_name: ${name}
+tracking_uri: ${original_work_dir}/logs/mlflow/mlruns
+
+evaluations: null
+validation_steps: null
+class_weight: null

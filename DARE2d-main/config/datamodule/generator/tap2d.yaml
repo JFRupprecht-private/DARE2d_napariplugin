@@ -1,0 +1,4 @@
+_target_: dare2d.datamodule.generator.tap2d.Tap2d
+
+data_folder: ${data_dir}
+crop_size: ${crop_size}

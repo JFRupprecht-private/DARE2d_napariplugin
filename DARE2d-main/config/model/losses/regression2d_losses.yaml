@@ -1,0 +1,3 @@
+defaults:
+  - ../losses@length_output: mean_squared_error
+  - ../losses@angle_output: mean_squared_error

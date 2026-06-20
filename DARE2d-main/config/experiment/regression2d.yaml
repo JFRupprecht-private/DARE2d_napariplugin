@@ -1,0 +1,45 @@
+# @package _global_
+
+# TO EXECUTE THIS EXPERIMENT:
+# python script/train.py experiment=regression2d
+
+defaults:
+  - override /datamodule: regression2d.yaml
+  - override /model: regression2d_cnn.yaml
+  - override /callbacks:
+      - default
+      # - regression2d
+  - override /logger: null # many_loggers.yaml
+  - override /trainer: basic_trainer.yaml
+
+# All parameters below will be merged with parameters from default configuration
+# set above, this allows you to overwrite only specified parameters
+
+# name of the run, determines folder name in logs
+name: "regression_2d"
+date: ${now:%Y-%m-%d}_${now:%H-%M-%S}
+
+seed: 12345
+
+train: True
+test: True
+
+data_dir: ${original_work_dir}/data/2d
+epochs: 50
+steps_per_epoch: 1000
+target_image_size: 256
+crop_size: 64
+input_channels: [-1, 0, 1]
+batch_size: 32
+renorm: "min-max"
+scale: [1.0, 1.0]
+
+model:
+  n_stages: 4
+  n_start_filters: 128
+
+trainer:
+  epochs: ${epochs}
+  steps_per_epoch: ${steps_per_epoch}
+
+optimized_metric: "angle_output_angle_degree_abs_mean"

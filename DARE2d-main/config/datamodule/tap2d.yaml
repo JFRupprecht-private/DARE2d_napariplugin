@@ -1,0 +1,15 @@
+_target_: dare2d.datamodule.tap2d.Tap2Datamodule
+
+defaults:
+  - generator@train: tap2d
+  - generator@val: tap2d
+  - generator@test: tap2d
+
+batch_size: ${batch_size}
+
+train:
+  data_folder: ${data_dir}/2d/movie
+val:
+  data_folder: ${data_dir}/2d/movie_val
+test:
+  data_folder: ${data_dir}/2d/movie_val

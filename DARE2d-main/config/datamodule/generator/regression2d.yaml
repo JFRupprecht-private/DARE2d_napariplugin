@@ -1,0 +1,7 @@
+_target_: dare2d.datamodule.generator._2d.regress_2dataset.Regress2Dataset
+
+data_folder: ${data_dir}
+input_channels: ${input_channels}
+scale: ${scale}
+crop_size: ${crop_size}
+renorm: ${renorm}

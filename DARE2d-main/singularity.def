@@ -1,0 +1,19 @@
+Bootstrap: docker
+From: tensorflow/tensorflow:2.12.0-gpu
+Stage: build
+
+%environment
+    dare2d_SRC=/dare2d
+
+%files
+    config /dare2d/config
+    dare2d /dare2d/dare2d
+    notebooks /dare2d/notebooks
+    scripts /dare2d/scripts
+    requirements.txt /dare2d/requirements.txt
+    setup.py /dare2d/setup.py
+
+%post
+    apt update && apt install libgl1 libc6 -y 
+    cd /dare2d
+    pip install -r requirements.txt

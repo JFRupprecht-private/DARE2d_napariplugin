@@ -1,0 +1,3 @@
+defaults:
+  - ../../datamodule/generator@train: regression2d
+  - ../../datamodule/generator@val: regression2d

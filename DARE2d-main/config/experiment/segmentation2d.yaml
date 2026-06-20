@@ -1,0 +1,45 @@
+# @package _global_
+
+# TO EXECUTE THIS EXPERIMENT:
+# python script/train.py experiment=center_detection
+
+defaults:
+  - override /datamodule: segmentation2d.yaml
+  - override /model: segmentation2d_cnn.yaml
+  - override /callbacks:
+      - default
+      # - segmentation2d
+  - override /logger: null
+  - override /trainer: segmentation2d.yaml
+
+# All parameters below will be merged with parameters from default configuration
+# set above, this allows you to overwrite only specified parameters
+
+# name of the run, determines folder name in logs
+name: segmentation_2d
+date: ${now:%Y-%m-%d}_${now:%H-%M-%S}
+
+seed: 12345
+
+train: True
+test: True
+
+data_dir: ${original_work_dir}/data/2d
+epochs: 50
+steps_per_epoch: 250
+crop_size: 256
+input_channels: [-1, 0, 1]
+batch_size: 32
+cell_radius: 8
+type_mask: "center"
+renorm: "min-max"
+scale: [1.0, 1.0]
+
+trainer:
+  epochs: ${epochs}
+  steps_per_epoch: ${steps_per_epoch}
+  validation_steps: 300
+
+weight_scaling: 4
+max_center_distance: 10
+optimized_metric: "fmeasure"

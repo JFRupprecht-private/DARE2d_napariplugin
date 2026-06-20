@@ -1,0 +1,8 @@
+loss:
+  _target_: dare2d.losses.3d_losses.quaternion_loss
+metric:
+  _target_: dare2d.losses.3d_losses.angle_metric
+name: "quaternion"
+vec_size: 4
+model_vec_size: 4
+angle_activation: "tanh"

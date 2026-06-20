@@ -1,0 +1,8 @@
+loss:
+  _target_: dare2d.losses.3d_losses.rot6_loss
+metric:
+  _target_: dare2d.losses.3d_losses.rot6_metric
+name: "rotation_matrix_6d"
+vec_size: 9
+model_vec_size: 6
+angle_activation: "linear"

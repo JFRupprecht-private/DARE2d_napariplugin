@@ -1,0 +1,2 @@
+_target_: dare2d.losses.3d_losses.length_loss_wrapper
+crop_size: ${crop_size}

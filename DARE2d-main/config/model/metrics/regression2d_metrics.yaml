@@ -1,0 +1,5 @@
+length_output:
+  _target_: dare2d.evaluation.length_regression.length_abs_mean_wrapper
+  crop_size: ${crop_size}
+angle_output:
+  _target_: dare2d.evaluation.angle_degree.angle_degree_abs_mean_wrapper

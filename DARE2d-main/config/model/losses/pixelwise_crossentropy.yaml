@@ -1,0 +1,3 @@
+_target_: dare2d.losses.pixelwise_crossentropy.pixelwise_weighted_binary_crossentropy2
+
+weight_scal: ${weight_scaling}

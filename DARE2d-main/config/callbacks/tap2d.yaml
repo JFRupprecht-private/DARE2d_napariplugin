@@ -1,0 +1,6 @@
+regression_display:
+  _target_: dare2d.callbacks.tap2d_callback.Tap2DCallback
+  log_dir: display_napari_tap
+  crop_size: ${crop_size}
+  n_display: 10
+  layer_name: "feature_head"

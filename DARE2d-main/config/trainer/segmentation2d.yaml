@@ -1,0 +1,12 @@
+_target_: dare2d.trainer.segmentation2d_trainer.Segmentation2DTrainer
+
+epochs: 1
+workers: 12
+use_multiprocessing: true
+steps_per_epoch: 100
+resume_from_checkpoint: null
+verbose: 1
+experiment_name: ${name}
+tracking_uri: ${original_work_dir}/logs/mlflow/mlruns
+evaluations: null
+max_distance_eval: ${max_center_distance}

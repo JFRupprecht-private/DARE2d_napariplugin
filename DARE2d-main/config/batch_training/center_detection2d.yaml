@@ -1,0 +1,18 @@
+defaults:
+  - ../datamodule/generator@generator: segmentation2d
+
+sets:
+  set_1: ${data_dir}/set_1
+  set_2: ${data_dir}/set_2
+  set_3: ${data_dir}/set_3
+  set_4: ${data_dir}/set_4
+  set_5: ${data_dir}/set_5
+  set_6: ${data_dir}/set_6
+  set_7: ${data_dir}/set_7
+  set_8: ${data_dir}/set_8
+
+train_amount_step: 2
+train_amount_max: 16
+
+optimized_metric: "fmeasure"
+scores_path: "scores.json"
