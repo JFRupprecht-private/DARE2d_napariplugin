@@ -1,0 +1,2811 @@
+[
+ {
+  "name": "data",
+  "class": "InputLayer",
+  "cfg": {
+   "batch_input_shape": [
+    null,
+    256,
+    256,
+    3
+   ]
+  },
+  "inbound": [],
+  "wshapes": []
+ },
+ {
+  "name": "bn_data",
+  "class": "BatchNormalization",
+  "cfg": {
+   "axis": [
+    3
+   ],
+   "momentum": 0.99,
+   "epsilon": 2e-05,
+   "center": true,
+   "scale": false
+  },
+  "inbound": [
+   "data"
+  ],
+  "wshapes": [
+   [
+    3
+   ],
+   [
+    3
+   ],
+   [
+    3
+   ]
+  ]
+ },
+ {
+  "name": "zero_padding2d",
+  "class": "ZeroPadding2D",
+  "cfg": {
+   "padding": [
+    [
+     3,
+     3
+    ],
+    [
+     3,
+     3
+    ]
+   ]
+  },
+  "inbound": [
+   "bn_data"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "conv0",
+  "class": "Conv2D",
+  "cfg": {
+   "filters": 64,
+   "kernel_size": [
+    7,
+    7
+   ],
+   "strides": [
+    2,
+    2
+   ],
+   "padding": "valid",
+   "use_bias": false,
+   "dilation_rate": [
+    1,
+    1
+   ]
+  },
+  "inbound": [
+   "zero_padding2d"
+  ],
+  "wshapes": [
+   [
+    7,
+    7,
+    3,
+    64
+   ]
+  ]
+ },
+ {
+  "name": "bn0",
+  "class": "BatchNormalization",
+  "cfg": {
+   "axis": [
+    3
+   ],
+   "momentum": 0.99,
+   "epsilon": 2e-05,
+   "center": true,
+   "scale": true
+  },
+  "inbound": [
+   "conv0"
+  ],
+  "wshapes": [
+   [
+    64
+   ],
+   [
+    64
+   ],
+   [
+    64
+   ],
+   [
+    64
+   ]
+  ]
+ },
+ {
+  "name": "relu0",
+  "class": "Activation",
+  "cfg": {
+   "activation": "relu"
+  },
+  "inbound": [
+   "bn0"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "zero_padding2d_1",
+  "class": "ZeroPadding2D",
+  "cfg": {
+   "padding": [
+    [
+     1,
+     1
+    ],
+    [
+     1,
+     1
+    ]
+   ]
+  },
+  "inbound": [
+   "relu0"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "pooling0",
+  "class": "MaxPooling2D",
+  "cfg": {
+   "pool_size": [
+    3,
+    3
+   ],
+   "strides": [
+    2,
+    2
+   ],
+   "padding": "valid"
+  },
+  "inbound": [
+   "zero_padding2d_1"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "stage1_unit1_bn1",
+  "class": "BatchNormalization",
+  "cfg": {
+   "axis": [
+    3
+   ],
+   "momentum": 0.99,
+   "epsilon": 2e-05,
+   "center": true,
+   "scale": true
+  },
+  "inbound": [
+   "pooling0"
+  ],
+  "wshapes": [
+   [
+    64
+   ],
+   [
+    64
+   ],
+   [
+    64
+   ],
+   [
+    64
+   ]
+  ]
+ },
+ {
+  "name": "stage1_unit1_relu1",
+  "class": "Activation",
+  "cfg": {
+   "activation": "relu"
+  },
+  "inbound": [
+   "stage1_unit1_bn1"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "zero_padding2d_2",
+  "class": "ZeroPadding2D",
+  "cfg": {
+   "padding": [
+    [
+     1,
+     1
+    ],
+    [
+     1,
+     1
+    ]
+   ]
+  },
+  "inbound": [
+   "stage1_unit1_relu1"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "stage1_unit1_conv1",
+  "class": "Conv2D",
+  "cfg": {
+   "filters": 64,
+   "kernel_size": [
+    3,
+    3
+   ],
+   "strides": [
+    1,
+    1
+   ],
+   "padding": "valid",
+   "use_bias": false,
+   "dilation_rate": [
+    1,
+    1
+   ]
+  },
+  "inbound": [
+   "zero_padding2d_2"
+  ],
+  "wshapes": [
+   [
+    3,
+    3,
+    64,
+    64
+   ]
+  ]
+ },
+ {
+  "name": "stage1_unit1_bn2",
+  "class": "BatchNormalization",
+  "cfg": {
+   "axis": [
+    3
+   ],
+   "momentum": 0.99,
+   "epsilon": 2e-05,
+   "center": true,
+   "scale": true
+  },
+  "inbound": [
+   "stage1_unit1_conv1"
+  ],
+  "wshapes": [
+   [
+    64
+   ],
+   [
+    64
+   ],
+   [
+    64
+   ],
+   [
+    64
+   ]
+  ]
+ },
+ {
+  "name": "stage1_unit1_relu2",
+  "class": "Activation",
+  "cfg": {
+   "activation": "relu"
+  },
+  "inbound": [
+   "stage1_unit1_bn2"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "zero_padding2d_3",
+  "class": "ZeroPadding2D",
+  "cfg": {
+   "padding": [
+    [
+     1,
+     1
+    ],
+    [
+     1,
+     1
+    ]
+   ]
+  },
+  "inbound": [
+   "stage1_unit1_relu2"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "stage1_unit1_conv2",
+  "class": "Conv2D",
+  "cfg": {
+   "filters": 64,
+   "kernel_size": [
+    3,
+    3
+   ],
+   "strides": [
+    1,
+    1
+   ],
+   "padding": "valid",
+   "use_bias": false,
+   "dilation_rate": [
+    1,
+    1
+   ]
+  },
+  "inbound": [
+   "zero_padding2d_3"
+  ],
+  "wshapes": [
+   [
+    3,
+    3,
+    64,
+    64
+   ]
+  ]
+ },
+ {
+  "name": "stage1_unit1_sc",
+  "class": "Conv2D",
+  "cfg": {
+   "filters": 64,
+   "kernel_size": [
+    1,
+    1
+   ],
+   "strides": [
+    1,
+    1
+   ],
+   "padding": "valid",
+   "use_bias": false,
+   "dilation_rate": [
+    1,
+    1
+   ]
+  },
+  "inbound": [
+   "stage1_unit1_relu1"
+  ],
+  "wshapes": [
+   [
+    1,
+    1,
+    64,
+    64
+   ]
+  ]
+ },
+ {
+  "name": "add",
+  "class": "Add",
+  "cfg": {},
+  "inbound": [
+   "stage1_unit1_conv2",
+   "stage1_unit1_sc"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "stage1_unit2_bn1",
+  "class": "BatchNormalization",
+  "cfg": {
+   "axis": [
+    3
+   ],
+   "momentum": 0.99,
+   "epsilon": 2e-05,
+   "center": true,
+   "scale": true
+  },
+  "inbound": [
+   "add"
+  ],
+  "wshapes": [
+   [
+    64
+   ],
+   [
+    64
+   ],
+   [
+    64
+   ],
+   [
+    64
+   ]
+  ]
+ },
+ {
+  "name": "stage1_unit2_relu1",
+  "class": "Activation",
+  "cfg": {
+   "activation": "relu"
+  },
+  "inbound": [
+   "stage1_unit2_bn1"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "zero_padding2d_4",
+  "class": "ZeroPadding2D",
+  "cfg": {
+   "padding": [
+    [
+     1,
+     1
+    ],
+    [
+     1,
+     1
+    ]
+   ]
+  },
+  "inbound": [
+   "stage1_unit2_relu1"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "stage1_unit2_conv1",
+  "class": "Conv2D",
+  "cfg": {
+   "filters": 64,
+   "kernel_size": [
+    3,
+    3
+   ],
+   "strides": [
+    1,
+    1
+   ],
+   "padding": "valid",
+   "use_bias": false,
+   "dilation_rate": [
+    1,
+    1
+   ]
+  },
+  "inbound": [
+   "zero_padding2d_4"
+  ],
+  "wshapes": [
+   [
+    3,
+    3,
+    64,
+    64
+   ]
+  ]
+ },
+ {
+  "name": "stage1_unit2_bn2",
+  "class": "BatchNormalization",
+  "cfg": {
+   "axis": [
+    3
+   ],
+   "momentum": 0.99,
+   "epsilon": 2e-05,
+   "center": true,
+   "scale": true
+  },
+  "inbound": [
+   "stage1_unit2_conv1"
+  ],
+  "wshapes": [
+   [
+    64
+   ],
+   [
+    64
+   ],
+   [
+    64
+   ],
+   [
+    64
+   ]
+  ]
+ },
+ {
+  "name": "stage1_unit2_relu2",
+  "class": "Activation",
+  "cfg": {
+   "activation": "relu"
+  },
+  "inbound": [
+   "stage1_unit2_bn2"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "zero_padding2d_5",
+  "class": "ZeroPadding2D",
+  "cfg": {
+   "padding": [
+    [
+     1,
+     1
+    ],
+    [
+     1,
+     1
+    ]
+   ]
+  },
+  "inbound": [
+   "stage1_unit2_relu2"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "stage1_unit2_conv2",
+  "class": "Conv2D",
+  "cfg": {
+   "filters": 64,
+   "kernel_size": [
+    3,
+    3
+   ],
+   "strides": [
+    1,
+    1
+   ],
+   "padding": "valid",
+   "use_bias": false,
+   "dilation_rate": [
+    1,
+    1
+   ]
+  },
+  "inbound": [
+   "zero_padding2d_5"
+  ],
+  "wshapes": [
+   [
+    3,
+    3,
+    64,
+    64
+   ]
+  ]
+ },
+ {
+  "name": "add_1",
+  "class": "Add",
+  "cfg": {},
+  "inbound": [
+   "stage1_unit2_conv2",
+   "add"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "stage2_unit1_bn1",
+  "class": "BatchNormalization",
+  "cfg": {
+   "axis": [
+    3
+   ],
+   "momentum": 0.99,
+   "epsilon": 2e-05,
+   "center": true,
+   "scale": true
+  },
+  "inbound": [
+   "add_1"
+  ],
+  "wshapes": [
+   [
+    64
+   ],
+   [
+    64
+   ],
+   [
+    64
+   ],
+   [
+    64
+   ]
+  ]
+ },
+ {
+  "name": "stage2_unit1_relu1",
+  "class": "Activation",
+  "cfg": {
+   "activation": "relu"
+  },
+  "inbound": [
+   "stage2_unit1_bn1"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "zero_padding2d_6",
+  "class": "ZeroPadding2D",
+  "cfg": {
+   "padding": [
+    [
+     1,
+     1
+    ],
+    [
+     1,
+     1
+    ]
+   ]
+  },
+  "inbound": [
+   "stage2_unit1_relu1"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "stage2_unit1_conv1",
+  "class": "Conv2D",
+  "cfg": {
+   "filters": 128,
+   "kernel_size": [
+    3,
+    3
+   ],
+   "strides": [
+    2,
+    2
+   ],
+   "padding": "valid",
+   "use_bias": false,
+   "dilation_rate": [
+    1,
+    1
+   ]
+  },
+  "inbound": [
+   "zero_padding2d_6"
+  ],
+  "wshapes": [
+   [
+    3,
+    3,
+    64,
+    128
+   ]
+  ]
+ },
+ {
+  "name": "stage2_unit1_bn2",
+  "class": "BatchNormalization",
+  "cfg": {
+   "axis": [
+    3
+   ],
+   "momentum": 0.99,
+   "epsilon": 2e-05,
+   "center": true,
+   "scale": true
+  },
+  "inbound": [
+   "stage2_unit1_conv1"
+  ],
+  "wshapes": [
+   [
+    128
+   ],
+   [
+    128
+   ],
+   [
+    128
+   ],
+   [
+    128
+   ]
+  ]
+ },
+ {
+  "name": "stage2_unit1_relu2",
+  "class": "Activation",
+  "cfg": {
+   "activation": "relu"
+  },
+  "inbound": [
+   "stage2_unit1_bn2"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "zero_padding2d_7",
+  "class": "ZeroPadding2D",
+  "cfg": {
+   "padding": [
+    [
+     1,
+     1
+    ],
+    [
+     1,
+     1
+    ]
+   ]
+  },
+  "inbound": [
+   "stage2_unit1_relu2"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "stage2_unit1_conv2",
+  "class": "Conv2D",
+  "cfg": {
+   "filters": 128,
+   "kernel_size": [
+    3,
+    3
+   ],
+   "strides": [
+    1,
+    1
+   ],
+   "padding": "valid",
+   "use_bias": false,
+   "dilation_rate": [
+    1,
+    1
+   ]
+  },
+  "inbound": [
+   "zero_padding2d_7"
+  ],
+  "wshapes": [
+   [
+    3,
+    3,
+    128,
+    128
+   ]
+  ]
+ },
+ {
+  "name": "stage2_unit1_sc",
+  "class": "Conv2D",
+  "cfg": {
+   "filters": 128,
+   "kernel_size": [
+    1,
+    1
+   ],
+   "strides": [
+    2,
+    2
+   ],
+   "padding": "valid",
+   "use_bias": false,
+   "dilation_rate": [
+    1,
+    1
+   ]
+  },
+  "inbound": [
+   "stage2_unit1_relu1"
+  ],
+  "wshapes": [
+   [
+    1,
+    1,
+    64,
+    128
+   ]
+  ]
+ },
+ {
+  "name": "add_2",
+  "class": "Add",
+  "cfg": {},
+  "inbound": [
+   "stage2_unit1_conv2",
+   "stage2_unit1_sc"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "stage2_unit2_bn1",
+  "class": "BatchNormalization",
+  "cfg": {
+   "axis": [
+    3
+   ],
+   "momentum": 0.99,
+   "epsilon": 2e-05,
+   "center": true,
+   "scale": true
+  },
+  "inbound": [
+   "add_2"
+  ],
+  "wshapes": [
+   [
+    128
+   ],
+   [
+    128
+   ],
+   [
+    128
+   ],
+   [
+    128
+   ]
+  ]
+ },
+ {
+  "name": "stage2_unit2_relu1",
+  "class": "Activation",
+  "cfg": {
+   "activation": "relu"
+  },
+  "inbound": [
+   "stage2_unit2_bn1"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "zero_padding2d_8",
+  "class": "ZeroPadding2D",
+  "cfg": {
+   "padding": [
+    [
+     1,
+     1
+    ],
+    [
+     1,
+     1
+    ]
+   ]
+  },
+  "inbound": [
+   "stage2_unit2_relu1"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "stage2_unit2_conv1",
+  "class": "Conv2D",
+  "cfg": {
+   "filters": 128,
+   "kernel_size": [
+    3,
+    3
+   ],
+   "strides": [
+    1,
+    1
+   ],
+   "padding": "valid",
+   "use_bias": false,
+   "dilation_rate": [
+    1,
+    1
+   ]
+  },
+  "inbound": [
+   "zero_padding2d_8"
+  ],
+  "wshapes": [
+   [
+    3,
+    3,
+    128,
+    128
+   ]
+  ]
+ },
+ {
+  "name": "stage2_unit2_bn2",
+  "class": "BatchNormalization",
+  "cfg": {
+   "axis": [
+    3
+   ],
+   "momentum": 0.99,
+   "epsilon": 2e-05,
+   "center": true,
+   "scale": true
+  },
+  "inbound": [
+   "stage2_unit2_conv1"
+  ],
+  "wshapes": [
+   [
+    128
+   ],
+   [
+    128
+   ],
+   [
+    128
+   ],
+   [
+    128
+   ]
+  ]
+ },
+ {
+  "name": "stage2_unit2_relu2",
+  "class": "Activation",
+  "cfg": {
+   "activation": "relu"
+  },
+  "inbound": [
+   "stage2_unit2_bn2"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "zero_padding2d_9",
+  "class": "ZeroPadding2D",
+  "cfg": {
+   "padding": [
+    [
+     1,
+     1
+    ],
+    [
+     1,
+     1
+    ]
+   ]
+  },
+  "inbound": [
+   "stage2_unit2_relu2"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "stage2_unit2_conv2",
+  "class": "Conv2D",
+  "cfg": {
+   "filters": 128,
+   "kernel_size": [
+    3,
+    3
+   ],
+   "strides": [
+    1,
+    1
+   ],
+   "padding": "valid",
+   "use_bias": false,
+   "dilation_rate": [
+    1,
+    1
+   ]
+  },
+  "inbound": [
+   "zero_padding2d_9"
+  ],
+  "wshapes": [
+   [
+    3,
+    3,
+    128,
+    128
+   ]
+  ]
+ },
+ {
+  "name": "add_3",
+  "class": "Add",
+  "cfg": {},
+  "inbound": [
+   "stage2_unit2_conv2",
+   "add_2"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "stage3_unit1_bn1",
+  "class": "BatchNormalization",
+  "cfg": {
+   "axis": [
+    3
+   ],
+   "momentum": 0.99,
+   "epsilon": 2e-05,
+   "center": true,
+   "scale": true
+  },
+  "inbound": [
+   "add_3"
+  ],
+  "wshapes": [
+   [
+    128
+   ],
+   [
+    128
+   ],
+   [
+    128
+   ],
+   [
+    128
+   ]
+  ]
+ },
+ {
+  "name": "stage3_unit1_relu1",
+  "class": "Activation",
+  "cfg": {
+   "activation": "relu"
+  },
+  "inbound": [
+   "stage3_unit1_bn1"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "zero_padding2d_10",
+  "class": "ZeroPadding2D",
+  "cfg": {
+   "padding": [
+    [
+     1,
+     1
+    ],
+    [
+     1,
+     1
+    ]
+   ]
+  },
+  "inbound": [
+   "stage3_unit1_relu1"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "stage3_unit1_conv1",
+  "class": "Conv2D",
+  "cfg": {
+   "filters": 256,
+   "kernel_size": [
+    3,
+    3
+   ],
+   "strides": [
+    2,
+    2
+   ],
+   "padding": "valid",
+   "use_bias": false,
+   "dilation_rate": [
+    1,
+    1
+   ]
+  },
+  "inbound": [
+   "zero_padding2d_10"
+  ],
+  "wshapes": [
+   [
+    3,
+    3,
+    128,
+    256
+   ]
+  ]
+ },
+ {
+  "name": "stage3_unit1_bn2",
+  "class": "BatchNormalization",
+  "cfg": {
+   "axis": [
+    3
+   ],
+   "momentum": 0.99,
+   "epsilon": 2e-05,
+   "center": true,
+   "scale": true
+  },
+  "inbound": [
+   "stage3_unit1_conv1"
+  ],
+  "wshapes": [
+   [
+    256
+   ],
+   [
+    256
+   ],
+   [
+    256
+   ],
+   [
+    256
+   ]
+  ]
+ },
+ {
+  "name": "stage3_unit1_relu2",
+  "class": "Activation",
+  "cfg": {
+   "activation": "relu"
+  },
+  "inbound": [
+   "stage3_unit1_bn2"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "zero_padding2d_11",
+  "class": "ZeroPadding2D",
+  "cfg": {
+   "padding": [
+    [
+     1,
+     1
+    ],
+    [
+     1,
+     1
+    ]
+   ]
+  },
+  "inbound": [
+   "stage3_unit1_relu2"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "stage3_unit1_conv2",
+  "class": "Conv2D",
+  "cfg": {
+   "filters": 256,
+   "kernel_size": [
+    3,
+    3
+   ],
+   "strides": [
+    1,
+    1
+   ],
+   "padding": "valid",
+   "use_bias": false,
+   "dilation_rate": [
+    1,
+    1
+   ]
+  },
+  "inbound": [
+   "zero_padding2d_11"
+  ],
+  "wshapes": [
+   [
+    3,
+    3,
+    256,
+    256
+   ]
+  ]
+ },
+ {
+  "name": "stage3_unit1_sc",
+  "class": "Conv2D",
+  "cfg": {
+   "filters": 256,
+   "kernel_size": [
+    1,
+    1
+   ],
+   "strides": [
+    2,
+    2
+   ],
+   "padding": "valid",
+   "use_bias": false,
+   "dilation_rate": [
+    1,
+    1
+   ]
+  },
+  "inbound": [
+   "stage3_unit1_relu1"
+  ],
+  "wshapes": [
+   [
+    1,
+    1,
+    128,
+    256
+   ]
+  ]
+ },
+ {
+  "name": "add_4",
+  "class": "Add",
+  "cfg": {},
+  "inbound": [
+   "stage3_unit1_conv2",
+   "stage3_unit1_sc"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "stage3_unit2_bn1",
+  "class": "BatchNormalization",
+  "cfg": {
+   "axis": [
+    3
+   ],
+   "momentum": 0.99,
+   "epsilon": 2e-05,
+   "center": true,
+   "scale": true
+  },
+  "inbound": [
+   "add_4"
+  ],
+  "wshapes": [
+   [
+    256
+   ],
+   [
+    256
+   ],
+   [
+    256
+   ],
+   [
+    256
+   ]
+  ]
+ },
+ {
+  "name": "stage3_unit2_relu1",
+  "class": "Activation",
+  "cfg": {
+   "activation": "relu"
+  },
+  "inbound": [
+   "stage3_unit2_bn1"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "zero_padding2d_12",
+  "class": "ZeroPadding2D",
+  "cfg": {
+   "padding": [
+    [
+     1,
+     1
+    ],
+    [
+     1,
+     1
+    ]
+   ]
+  },
+  "inbound": [
+   "stage3_unit2_relu1"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "stage3_unit2_conv1",
+  "class": "Conv2D",
+  "cfg": {
+   "filters": 256,
+   "kernel_size": [
+    3,
+    3
+   ],
+   "strides": [
+    1,
+    1
+   ],
+   "padding": "valid",
+   "use_bias": false,
+   "dilation_rate": [
+    1,
+    1
+   ]
+  },
+  "inbound": [
+   "zero_padding2d_12"
+  ],
+  "wshapes": [
+   [
+    3,
+    3,
+    256,
+    256
+   ]
+  ]
+ },
+ {
+  "name": "stage3_unit2_bn2",
+  "class": "BatchNormalization",
+  "cfg": {
+   "axis": [
+    3
+   ],
+   "momentum": 0.99,
+   "epsilon": 2e-05,
+   "center": true,
+   "scale": true
+  },
+  "inbound": [
+   "stage3_unit2_conv1"
+  ],
+  "wshapes": [
+   [
+    256
+   ],
+   [
+    256
+   ],
+   [
+    256
+   ],
+   [
+    256
+   ]
+  ]
+ },
+ {
+  "name": "stage3_unit2_relu2",
+  "class": "Activation",
+  "cfg": {
+   "activation": "relu"
+  },
+  "inbound": [
+   "stage3_unit2_bn2"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "zero_padding2d_13",
+  "class": "ZeroPadding2D",
+  "cfg": {
+   "padding": [
+    [
+     1,
+     1
+    ],
+    [
+     1,
+     1
+    ]
+   ]
+  },
+  "inbound": [
+   "stage3_unit2_relu2"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "stage3_unit2_conv2",
+  "class": "Conv2D",
+  "cfg": {
+   "filters": 256,
+   "kernel_size": [
+    3,
+    3
+   ],
+   "strides": [
+    1,
+    1
+   ],
+   "padding": "valid",
+   "use_bias": false,
+   "dilation_rate": [
+    1,
+    1
+   ]
+  },
+  "inbound": [
+   "zero_padding2d_13"
+  ],
+  "wshapes": [
+   [
+    3,
+    3,
+    256,
+    256
+   ]
+  ]
+ },
+ {
+  "name": "add_5",
+  "class": "Add",
+  "cfg": {},
+  "inbound": [
+   "stage3_unit2_conv2",
+   "add_4"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "stage4_unit1_bn1",
+  "class": "BatchNormalization",
+  "cfg": {
+   "axis": [
+    3
+   ],
+   "momentum": 0.99,
+   "epsilon": 2e-05,
+   "center": true,
+   "scale": true
+  },
+  "inbound": [
+   "add_5"
+  ],
+  "wshapes": [
+   [
+    256
+   ],
+   [
+    256
+   ],
+   [
+    256
+   ],
+   [
+    256
+   ]
+  ]
+ },
+ {
+  "name": "stage4_unit1_relu1",
+  "class": "Activation",
+  "cfg": {
+   "activation": "relu"
+  },
+  "inbound": [
+   "stage4_unit1_bn1"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "zero_padding2d_14",
+  "class": "ZeroPadding2D",
+  "cfg": {
+   "padding": [
+    [
+     1,
+     1
+    ],
+    [
+     1,
+     1
+    ]
+   ]
+  },
+  "inbound": [
+   "stage4_unit1_relu1"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "stage4_unit1_conv1",
+  "class": "Conv2D",
+  "cfg": {
+   "filters": 512,
+   "kernel_size": [
+    3,
+    3
+   ],
+   "strides": [
+    2,
+    2
+   ],
+   "padding": "valid",
+   "use_bias": false,
+   "dilation_rate": [
+    1,
+    1
+   ]
+  },
+  "inbound": [
+   "zero_padding2d_14"
+  ],
+  "wshapes": [
+   [
+    3,
+    3,
+    256,
+    512
+   ]
+  ]
+ },
+ {
+  "name": "stage4_unit1_bn2",
+  "class": "BatchNormalization",
+  "cfg": {
+   "axis": [
+    3
+   ],
+   "momentum": 0.99,
+   "epsilon": 2e-05,
+   "center": true,
+   "scale": true
+  },
+  "inbound": [
+   "stage4_unit1_conv1"
+  ],
+  "wshapes": [
+   [
+    512
+   ],
+   [
+    512
+   ],
+   [
+    512
+   ],
+   [
+    512
+   ]
+  ]
+ },
+ {
+  "name": "stage4_unit1_relu2",
+  "class": "Activation",
+  "cfg": {
+   "activation": "relu"
+  },
+  "inbound": [
+   "stage4_unit1_bn2"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "zero_padding2d_15",
+  "class": "ZeroPadding2D",
+  "cfg": {
+   "padding": [
+    [
+     1,
+     1
+    ],
+    [
+     1,
+     1
+    ]
+   ]
+  },
+  "inbound": [
+   "stage4_unit1_relu2"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "stage4_unit1_conv2",
+  "class": "Conv2D",
+  "cfg": {
+   "filters": 512,
+   "kernel_size": [
+    3,
+    3
+   ],
+   "strides": [
+    1,
+    1
+   ],
+   "padding": "valid",
+   "use_bias": false,
+   "dilation_rate": [
+    1,
+    1
+   ]
+  },
+  "inbound": [
+   "zero_padding2d_15"
+  ],
+  "wshapes": [
+   [
+    3,
+    3,
+    512,
+    512
+   ]
+  ]
+ },
+ {
+  "name": "stage4_unit1_sc",
+  "class": "Conv2D",
+  "cfg": {
+   "filters": 512,
+   "kernel_size": [
+    1,
+    1
+   ],
+   "strides": [
+    2,
+    2
+   ],
+   "padding": "valid",
+   "use_bias": false,
+   "dilation_rate": [
+    1,
+    1
+   ]
+  },
+  "inbound": [
+   "stage4_unit1_relu1"
+  ],
+  "wshapes": [
+   [
+    1,
+    1,
+    256,
+    512
+   ]
+  ]
+ },
+ {
+  "name": "add_6",
+  "class": "Add",
+  "cfg": {},
+  "inbound": [
+   "stage4_unit1_conv2",
+   "stage4_unit1_sc"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "stage4_unit2_bn1",
+  "class": "BatchNormalization",
+  "cfg": {
+   "axis": [
+    3
+   ],
+   "momentum": 0.99,
+   "epsilon": 2e-05,
+   "center": true,
+   "scale": true
+  },
+  "inbound": [
+   "add_6"
+  ],
+  "wshapes": [
+   [
+    512
+   ],
+   [
+    512
+   ],
+   [
+    512
+   ],
+   [
+    512
+   ]
+  ]
+ },
+ {
+  "name": "stage4_unit2_relu1",
+  "class": "Activation",
+  "cfg": {
+   "activation": "relu"
+  },
+  "inbound": [
+   "stage4_unit2_bn1"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "zero_padding2d_16",
+  "class": "ZeroPadding2D",
+  "cfg": {
+   "padding": [
+    [
+     1,
+     1
+    ],
+    [
+     1,
+     1
+    ]
+   ]
+  },
+  "inbound": [
+   "stage4_unit2_relu1"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "stage4_unit2_conv1",
+  "class": "Conv2D",
+  "cfg": {
+   "filters": 512,
+   "kernel_size": [
+    3,
+    3
+   ],
+   "strides": [
+    1,
+    1
+   ],
+   "padding": "valid",
+   "use_bias": false,
+   "dilation_rate": [
+    1,
+    1
+   ]
+  },
+  "inbound": [
+   "zero_padding2d_16"
+  ],
+  "wshapes": [
+   [
+    3,
+    3,
+    512,
+    512
+   ]
+  ]
+ },
+ {
+  "name": "stage4_unit2_bn2",
+  "class": "BatchNormalization",
+  "cfg": {
+   "axis": [
+    3
+   ],
+   "momentum": 0.99,
+   "epsilon": 2e-05,
+   "center": true,
+   "scale": true
+  },
+  "inbound": [
+   "stage4_unit2_conv1"
+  ],
+  "wshapes": [
+   [
+    512
+   ],
+   [
+    512
+   ],
+   [
+    512
+   ],
+   [
+    512
+   ]
+  ]
+ },
+ {
+  "name": "stage4_unit2_relu2",
+  "class": "Activation",
+  "cfg": {
+   "activation": "relu"
+  },
+  "inbound": [
+   "stage4_unit2_bn2"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "zero_padding2d_17",
+  "class": "ZeroPadding2D",
+  "cfg": {
+   "padding": [
+    [
+     1,
+     1
+    ],
+    [
+     1,
+     1
+    ]
+   ]
+  },
+  "inbound": [
+   "stage4_unit2_relu2"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "stage4_unit2_conv2",
+  "class": "Conv2D",
+  "cfg": {
+   "filters": 512,
+   "kernel_size": [
+    3,
+    3
+   ],
+   "strides": [
+    1,
+    1
+   ],
+   "padding": "valid",
+   "use_bias": false,
+   "dilation_rate": [
+    1,
+    1
+   ]
+  },
+  "inbound": [
+   "zero_padding2d_17"
+  ],
+  "wshapes": [
+   [
+    3,
+    3,
+    512,
+    512
+   ]
+  ]
+ },
+ {
+  "name": "add_7",
+  "class": "Add",
+  "cfg": {},
+  "inbound": [
+   "stage4_unit2_conv2",
+   "add_6"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "bn1",
+  "class": "BatchNormalization",
+  "cfg": {
+   "axis": [
+    3
+   ],
+   "momentum": 0.99,
+   "epsilon": 2e-05,
+   "center": true,
+   "scale": true
+  },
+  "inbound": [
+   "add_7"
+  ],
+  "wshapes": [
+   [
+    512
+   ],
+   [
+    512
+   ],
+   [
+    512
+   ],
+   [
+    512
+   ]
+  ]
+ },
+ {
+  "name": "relu1",
+  "class": "Activation",
+  "cfg": {
+   "activation": "relu"
+  },
+  "inbound": [
+   "bn1"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "decoder_stage0_upsampling",
+  "class": "UpSampling2D",
+  "cfg": {
+   "size": [
+    2,
+    2
+   ],
+   "interpolation": "nearest"
+  },
+  "inbound": [
+   "relu1"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "decoder_stage0_concat",
+  "class": "Concatenate",
+  "cfg": {
+   "axis": 3
+  },
+  "inbound": [
+   "decoder_stage0_upsampling",
+   "stage4_unit1_relu1"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "decoder_stage0a_conv",
+  "class": "Conv2D",
+  "cfg": {
+   "filters": 256,
+   "kernel_size": [
+    3,
+    3
+   ],
+   "strides": [
+    1,
+    1
+   ],
+   "padding": "same",
+   "use_bias": false,
+   "dilation_rate": [
+    1,
+    1
+   ]
+  },
+  "inbound": [
+   "decoder_stage0_concat"
+  ],
+  "wshapes": [
+   [
+    3,
+    3,
+    768,
+    256
+   ]
+  ]
+ },
+ {
+  "name": "decoder_stage0a_bn",
+  "class": "BatchNormalization",
+  "cfg": {
+   "axis": [
+    3
+   ],
+   "momentum": 0.99,
+   "epsilon": 0.001,
+   "center": true,
+   "scale": true
+  },
+  "inbound": [
+   "decoder_stage0a_conv"
+  ],
+  "wshapes": [
+   [
+    256
+   ],
+   [
+    256
+   ],
+   [
+    256
+   ],
+   [
+    256
+   ]
+  ]
+ },
+ {
+  "name": "decoder_stage0a_relu",
+  "class": "Activation",
+  "cfg": {
+   "activation": "relu"
+  },
+  "inbound": [
+   "decoder_stage0a_bn"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "decoder_stage0b_conv",
+  "class": "Conv2D",
+  "cfg": {
+   "filters": 256,
+   "kernel_size": [
+    3,
+    3
+   ],
+   "strides": [
+    1,
+    1
+   ],
+   "padding": "same",
+   "use_bias": false,
+   "dilation_rate": [
+    1,
+    1
+   ]
+  },
+  "inbound": [
+   "decoder_stage0a_relu"
+  ],
+  "wshapes": [
+   [
+    3,
+    3,
+    256,
+    256
+   ]
+  ]
+ },
+ {
+  "name": "decoder_stage0b_bn",
+  "class": "BatchNormalization",
+  "cfg": {
+   "axis": [
+    3
+   ],
+   "momentum": 0.99,
+   "epsilon": 0.001,
+   "center": true,
+   "scale": true
+  },
+  "inbound": [
+   "decoder_stage0b_conv"
+  ],
+  "wshapes": [
+   [
+    256
+   ],
+   [
+    256
+   ],
+   [
+    256
+   ],
+   [
+    256
+   ]
+  ]
+ },
+ {
+  "name": "decoder_stage0b_relu",
+  "class": "Activation",
+  "cfg": {
+   "activation": "relu"
+  },
+  "inbound": [
+   "decoder_stage0b_bn"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "decoder_stage1_upsampling",
+  "class": "UpSampling2D",
+  "cfg": {
+   "size": [
+    2,
+    2
+   ],
+   "interpolation": "nearest"
+  },
+  "inbound": [
+   "decoder_stage0b_relu"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "decoder_stage1_concat",
+  "class": "Concatenate",
+  "cfg": {
+   "axis": 3
+  },
+  "inbound": [
+   "decoder_stage1_upsampling",
+   "stage3_unit1_relu1"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "decoder_stage1a_conv",
+  "class": "Conv2D",
+  "cfg": {
+   "filters": 128,
+   "kernel_size": [
+    3,
+    3
+   ],
+   "strides": [
+    1,
+    1
+   ],
+   "padding": "same",
+   "use_bias": false,
+   "dilation_rate": [
+    1,
+    1
+   ]
+  },
+  "inbound": [
+   "decoder_stage1_concat"
+  ],
+  "wshapes": [
+   [
+    3,
+    3,
+    384,
+    128
+   ]
+  ]
+ },
+ {
+  "name": "decoder_stage1a_bn",
+  "class": "BatchNormalization",
+  "cfg": {
+   "axis": [
+    3
+   ],
+   "momentum": 0.99,
+   "epsilon": 0.001,
+   "center": true,
+   "scale": true
+  },
+  "inbound": [
+   "decoder_stage1a_conv"
+  ],
+  "wshapes": [
+   [
+    128
+   ],
+   [
+    128
+   ],
+   [
+    128
+   ],
+   [
+    128
+   ]
+  ]
+ },
+ {
+  "name": "decoder_stage1a_relu",
+  "class": "Activation",
+  "cfg": {
+   "activation": "relu"
+  },
+  "inbound": [
+   "decoder_stage1a_bn"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "decoder_stage1b_conv",
+  "class": "Conv2D",
+  "cfg": {
+   "filters": 128,
+   "kernel_size": [
+    3,
+    3
+   ],
+   "strides": [
+    1,
+    1
+   ],
+   "padding": "same",
+   "use_bias": false,
+   "dilation_rate": [
+    1,
+    1
+   ]
+  },
+  "inbound": [
+   "decoder_stage1a_relu"
+  ],
+  "wshapes": [
+   [
+    3,
+    3,
+    128,
+    128
+   ]
+  ]
+ },
+ {
+  "name": "decoder_stage1b_bn",
+  "class": "BatchNormalization",
+  "cfg": {
+   "axis": [
+    3
+   ],
+   "momentum": 0.99,
+   "epsilon": 0.001,
+   "center": true,
+   "scale": true
+  },
+  "inbound": [
+   "decoder_stage1b_conv"
+  ],
+  "wshapes": [
+   [
+    128
+   ],
+   [
+    128
+   ],
+   [
+    128
+   ],
+   [
+    128
+   ]
+  ]
+ },
+ {
+  "name": "decoder_stage1b_relu",
+  "class": "Activation",
+  "cfg": {
+   "activation": "relu"
+  },
+  "inbound": [
+   "decoder_stage1b_bn"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "decoder_stage2_upsampling",
+  "class": "UpSampling2D",
+  "cfg": {
+   "size": [
+    2,
+    2
+   ],
+   "interpolation": "nearest"
+  },
+  "inbound": [
+   "decoder_stage1b_relu"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "decoder_stage2_concat",
+  "class": "Concatenate",
+  "cfg": {
+   "axis": 3
+  },
+  "inbound": [
+   "decoder_stage2_upsampling",
+   "stage2_unit1_relu1"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "decoder_stage2a_conv",
+  "class": "Conv2D",
+  "cfg": {
+   "filters": 64,
+   "kernel_size": [
+    3,
+    3
+   ],
+   "strides": [
+    1,
+    1
+   ],
+   "padding": "same",
+   "use_bias": false,
+   "dilation_rate": [
+    1,
+    1
+   ]
+  },
+  "inbound": [
+   "decoder_stage2_concat"
+  ],
+  "wshapes": [
+   [
+    3,
+    3,
+    192,
+    64
+   ]
+  ]
+ },
+ {
+  "name": "decoder_stage2a_bn",
+  "class": "BatchNormalization",
+  "cfg": {
+   "axis": [
+    3
+   ],
+   "momentum": 0.99,
+   "epsilon": 0.001,
+   "center": true,
+   "scale": true
+  },
+  "inbound": [
+   "decoder_stage2a_conv"
+  ],
+  "wshapes": [
+   [
+    64
+   ],
+   [
+    64
+   ],
+   [
+    64
+   ],
+   [
+    64
+   ]
+  ]
+ },
+ {
+  "name": "decoder_stage2a_relu",
+  "class": "Activation",
+  "cfg": {
+   "activation": "relu"
+  },
+  "inbound": [
+   "decoder_stage2a_bn"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "decoder_stage2b_conv",
+  "class": "Conv2D",
+  "cfg": {
+   "filters": 64,
+   "kernel_size": [
+    3,
+    3
+   ],
+   "strides": [
+    1,
+    1
+   ],
+   "padding": "same",
+   "use_bias": false,
+   "dilation_rate": [
+    1,
+    1
+   ]
+  },
+  "inbound": [
+   "decoder_stage2a_relu"
+  ],
+  "wshapes": [
+   [
+    3,
+    3,
+    64,
+    64
+   ]
+  ]
+ },
+ {
+  "name": "decoder_stage2b_bn",
+  "class": "BatchNormalization",
+  "cfg": {
+   "axis": [
+    3
+   ],
+   "momentum": 0.99,
+   "epsilon": 0.001,
+   "center": true,
+   "scale": true
+  },
+  "inbound": [
+   "decoder_stage2b_conv"
+  ],
+  "wshapes": [
+   [
+    64
+   ],
+   [
+    64
+   ],
+   [
+    64
+   ],
+   [
+    64
+   ]
+  ]
+ },
+ {
+  "name": "decoder_stage2b_relu",
+  "class": "Activation",
+  "cfg": {
+   "activation": "relu"
+  },
+  "inbound": [
+   "decoder_stage2b_bn"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "decoder_stage3_upsampling",
+  "class": "UpSampling2D",
+  "cfg": {
+   "size": [
+    2,
+    2
+   ],
+   "interpolation": "nearest"
+  },
+  "inbound": [
+   "decoder_stage2b_relu"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "decoder_stage3_concat",
+  "class": "Concatenate",
+  "cfg": {
+   "axis": 3
+  },
+  "inbound": [
+   "decoder_stage3_upsampling",
+   "relu0"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "decoder_stage3a_conv",
+  "class": "Conv2D",
+  "cfg": {
+   "filters": 32,
+   "kernel_size": [
+    3,
+    3
+   ],
+   "strides": [
+    1,
+    1
+   ],
+   "padding": "same",
+   "use_bias": false,
+   "dilation_rate": [
+    1,
+    1
+   ]
+  },
+  "inbound": [
+   "decoder_stage3_concat"
+  ],
+  "wshapes": [
+   [
+    3,
+    3,
+    128,
+    32
+   ]
+  ]
+ },
+ {
+  "name": "decoder_stage3a_bn",
+  "class": "BatchNormalization",
+  "cfg": {
+   "axis": [
+    3
+   ],
+   "momentum": 0.99,
+   "epsilon": 0.001,
+   "center": true,
+   "scale": true
+  },
+  "inbound": [
+   "decoder_stage3a_conv"
+  ],
+  "wshapes": [
+   [
+    32
+   ],
+   [
+    32
+   ],
+   [
+    32
+   ],
+   [
+    32
+   ]
+  ]
+ },
+ {
+  "name": "decoder_stage3a_relu",
+  "class": "Activation",
+  "cfg": {
+   "activation": "relu"
+  },
+  "inbound": [
+   "decoder_stage3a_bn"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "decoder_stage3b_conv",
+  "class": "Conv2D",
+  "cfg": {
+   "filters": 32,
+   "kernel_size": [
+    3,
+    3
+   ],
+   "strides": [
+    1,
+    1
+   ],
+   "padding": "same",
+   "use_bias": false,
+   "dilation_rate": [
+    1,
+    1
+   ]
+  },
+  "inbound": [
+   "decoder_stage3a_relu"
+  ],
+  "wshapes": [
+   [
+    3,
+    3,
+    32,
+    32
+   ]
+  ]
+ },
+ {
+  "name": "decoder_stage3b_bn",
+  "class": "BatchNormalization",
+  "cfg": {
+   "axis": [
+    3
+   ],
+   "momentum": 0.99,
+   "epsilon": 0.001,
+   "center": true,
+   "scale": true
+  },
+  "inbound": [
+   "decoder_stage3b_conv"
+  ],
+  "wshapes": [
+   [
+    32
+   ],
+   [
+    32
+   ],
+   [
+    32
+   ],
+   [
+    32
+   ]
+  ]
+ },
+ {
+  "name": "decoder_stage3b_relu",
+  "class": "Activation",
+  "cfg": {
+   "activation": "relu"
+  },
+  "inbound": [
+   "decoder_stage3b_bn"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "decoder_stage4_upsampling",
+  "class": "UpSampling2D",
+  "cfg": {
+   "size": [
+    2,
+    2
+   ],
+   "interpolation": "nearest"
+  },
+  "inbound": [
+   "decoder_stage3b_relu"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "decoder_stage4a_conv",
+  "class": "Conv2D",
+  "cfg": {
+   "filters": 16,
+   "kernel_size": [
+    3,
+    3
+   ],
+   "strides": [
+    1,
+    1
+   ],
+   "padding": "same",
+   "use_bias": false,
+   "dilation_rate": [
+    1,
+    1
+   ]
+  },
+  "inbound": [
+   "decoder_stage4_upsampling"
+  ],
+  "wshapes": [
+   [
+    3,
+    3,
+    32,
+    16
+   ]
+  ]
+ },
+ {
+  "name": "decoder_stage4a_bn",
+  "class": "BatchNormalization",
+  "cfg": {
+   "axis": [
+    3
+   ],
+   "momentum": 0.99,
+   "epsilon": 0.001,
+   "center": true,
+   "scale": true
+  },
+  "inbound": [
+   "decoder_stage4a_conv"
+  ],
+  "wshapes": [
+   [
+    16
+   ],
+   [
+    16
+   ],
+   [
+    16
+   ],
+   [
+    16
+   ]
+  ]
+ },
+ {
+  "name": "decoder_stage4a_relu",
+  "class": "Activation",
+  "cfg": {
+   "activation": "relu"
+  },
+  "inbound": [
+   "decoder_stage4a_bn"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "decoder_stage4b_conv",
+  "class": "Conv2D",
+  "cfg": {
+   "filters": 16,
+   "kernel_size": [
+    3,
+    3
+   ],
+   "strides": [
+    1,
+    1
+   ],
+   "padding": "same",
+   "use_bias": false,
+   "dilation_rate": [
+    1,
+    1
+   ]
+  },
+  "inbound": [
+   "decoder_stage4a_relu"
+  ],
+  "wshapes": [
+   [
+    3,
+    3,
+    16,
+    16
+   ]
+  ]
+ },
+ {
+  "name": "decoder_stage4b_bn",
+  "class": "BatchNormalization",
+  "cfg": {
+   "axis": [
+    3
+   ],
+   "momentum": 0.99,
+   "epsilon": 0.001,
+   "center": true,
+   "scale": true
+  },
+  "inbound": [
+   "decoder_stage4b_conv"
+  ],
+  "wshapes": [
+   [
+    16
+   ],
+   [
+    16
+   ],
+   [
+    16
+   ],
+   [
+    16
+   ]
+  ]
+ },
+ {
+  "name": "decoder_stage4b_relu",
+  "class": "Activation",
+  "cfg": {
+   "activation": "relu"
+  },
+  "inbound": [
+   "decoder_stage4b_bn"
+  ],
+  "wshapes": []
+ },
+ {
+  "name": "final_conv",
+  "class": "Conv2D",
+  "cfg": {
+   "filters": 1,
+   "kernel_size": [
+    3,
+    3
+   ],
+   "strides": [
+    1,
+    1
+   ],
+   "padding": "same",
+   "use_bias": true,
+   "dilation_rate": [
+    1,
+    1
+   ]
+  },
+  "inbound": [
+   "decoder_stage4b_relu"
+  ],
+  "wshapes": [
+   [
+    3,
+    3,
+    16,
+    1
+   ],
+   [
+    1
+   ]
+  ]
+ },
+ {
+  "name": "sigmoid",
+  "class": "Activation",
+  "cfg": {
+   "activation": "sigmoid"
+  },
+  "inbound": [
+   "final_conv"
+  ],
+  "wshapes": []
+ }
+]

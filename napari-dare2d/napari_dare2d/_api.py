@@ -345,6 +345,25 @@ _PROP_KEYS = ("angle", "length", "angle_std_deg", "length_std", "pos_std",
               "n_models", "support_fraction")
 
 
+def _points_border_key():
+    """napari renamed the Points marker outline ``edge_*`` -> ``border_*`` in 0.5.
+
+    Return the kwarg name the *installed* napari expects, so the same plugin works
+    under napari 0.4.18 (TF/Keras env) and >=0.5 (modern env). Uses package
+    metadata, not a napari import, to stay napari-free here. (Vectors kept
+    ``edge_color``/``edge_width`` in 0.5, so only Points needs this.)
+    """
+    try:
+        from importlib.metadata import version
+
+        major, minor = (int(x) for x in version("napari").split(".")[:2])
+        if (major, minor) >= (0, 5):
+            return "border_color"
+    except Exception:
+        pass
+    return "edge_color"
+
+
 def _iter_dets(per_frame, frame_base):
     for key in sorted(per_frame):
         t = int(key) - frame_base
@@ -407,7 +426,7 @@ def to_layer_data(per_frame, frame_base=0, name="DARE2D", point_size=24,
         "name": f"{name} centers",
         "size": point_size,
         "face_color": "red",
-        "edge_color": "white",  # napari 0.4.18 name (renamed to border_color in >=0.5)
+        _points_border_key(): "white",  # edge_color (0.4.18) / border_color (>=0.5)
     }
     if properties:
         points_meta["properties"] = properties

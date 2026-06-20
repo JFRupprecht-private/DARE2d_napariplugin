@@ -38,9 +38,10 @@ napari-dare2d/               # the plugin (this project)
 regression_checkpoints/      # NOT in git — see "Model weights & data" below
 segmentation_checkpoints/    # NOT in git
 set_8/                       # NOT in git — example stack + reference detections
+dare2d-torch/                # GPU inference: ONNX (done) + PyTorch port (reg done, seg=ONNX)
 HANDOFF.md                   # full build log / decisions / gotchas
 FOR_DARE3D.md                # notes for porting this to the 3D pipeline
-PYTORCH_MIGRATION.md         # plan to move inference to ONNX(GPU) then PyTorch
+PYTORCH_MIGRATION.md         # migration plan + status (ONNX/GPU + PyTorch port)
 ```
 
 ## Model weights & data (not in git)
@@ -62,8 +63,16 @@ yet supported).
 
 DARE2D pins **TensorFlow 2.12**, which forces an older, tightly-coupled stack —
 **numpy 1.23.5** (TF needs `<1.24`), **napari 0.4.18** (last napari that tolerates
-numpy 1.23). Inference runs on **CPU** on native Windows (TF ≥2.11 has no Windows
-GPU; that's what `PYTORCH_MIGRATION.md` addresses).
+numpy 1.23). The Keras backend runs on **CPU** on native Windows (TF ≥2.11 has no
+Windows GPU).
+
+**GPU option (PyTorch backend).** The plugin can also run a faithful PyTorch port
+of both models on the GPU — selectable in the widget via the **Inference backend**
+dropdown (`keras` vs `pytorch`), same detections (parity ~1e-7). PyTorch coexists
+with TF in this same env (`pip install torch torchvision --index-url
+https://download.pytorch.org/whl/cu124`; numpy 1.23.5 stays put). The port and its
+weights live in `dare2d-torch/` — see `dare2d-torch/README.md` and
+`PYTORCH_MIGRATION.md`.
 
 ```bash
 # Python 3.10 conda env (an env named `napari-env-for-DARE2D-claude` is already set up)
@@ -93,15 +102,18 @@ napari
 
 In napari: **Plugins → DARE2D division detection**. Then:
 1. Load a `.tif` stack (drag-and-drop) and select it as the **Image** layer.
-2. Point **Regression / Segmentation checkpoints** at the two folders above
-   (the defaults already point there).
-3. Set **Model sets** (`8` = one set, fast; `1-8` = full ensemble + consensus),
+2. Choose the **Inference backend** — `keras` (TF, CPU) or `pytorch` (GPU). The
+   PyTorch option needs the converted weights in `dare2d-torch/weights_pt/`
+   (generate once with `dare2d-torch/convert_to_torch.py`).
+3. Point **Regression / Segmentation checkpoints** at the two folders above
+   (the defaults already point there; used by the `keras` backend).
+4. Set **Model sets** (`8` = one set, fast; `1-8` = full ensemble + consensus),
    the frame range, and consensus `eps` / `min_models`.
-4. **Run DARE2D** — inference runs in a background thread with a progress bar;
+5. **Run DARE2D** — inference runs in a background thread with a progress bar;
    results appear as a Points layer (centres) and a Vectors layer (axes).
 
-> The full 8-model ensemble over a large stack is slow on CPU — start with one
-> model set and a small frame range.
+> The full 8-model ensemble over a large stack is slow on the CPU `keras` backend —
+> start with one model set and a small frame range, or use the `pytorch` (GPU) backend.
 
 ## Checks
 

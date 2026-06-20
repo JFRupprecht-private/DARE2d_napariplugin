@@ -16,6 +16,59 @@ _À lire avec `HANDOFF.md` (état actuel TF) et `FOR_DARE3D.md`._
 
 ---
 
+## ÉTAT D'AVANCEMENT — PISTE 1 (ONNX/GPU) ✅ TERMINÉE (2026-06-20)
+Tout vit dans **`dare2d-torch/`** ; `DARE2d-main/` et `napari-dare2d` **non modifiés**.
+- **P1.0** ✅ Outillage export (`onnx 1.15`, `onnxruntime 1.16.3`, `tf2onnx 1.16.1 --no-deps`)
+  ajouté à l'env TF sans bouger numpy 1.23.5 / protobuf 4.25.9. Env GPU `dare2d-onnx`
+  (py3.11, numpy 2) : **CUDAExecutionProvider actif sur la RTX 5000** (asserté).
+- **P1.1** ✅ Export des **8 reg + 8 seg** `.h5 → .onnx` (batch dynamique, opset 17) via le
+  chemin Hydra de DARE2D (archi identique garantie).
+- **P1.2** ✅ `backends.OnnxModel` = drop-in Keras (`.model.predict`) → `infer_stack` /
+  `inference_strategy` réutilisés **verbatim**.
+- **P1.4** ✅ **Parité TF↔ONNX** (sets 1/5/8) : seg `max|Δ|≈7e-7`, reg `≈1e-7`, masque 100 %,
+  **détections identiques** (comptes, centres 0 px, angle/longueur 0).
+- **P1.5** ✅ **GPU** : seg ~29×, reg ~16×, **end-to-end réel ~18,6×** (2856→154 ms/frame),
+  détections GPU == CPU. **Livrable : GPU exploitable, poids exacts.**
+- **Pièges rencontrés & corrigés** : ort-gpu 1.27 exige CUDA 13 (stub PyPI) → 1.22 (CUDA 12) ;
+  cuDNN charge ses sous-libs via **PATH** (pas `add_dll_directory`) ; `PYTHONNOUSERSITE` (numpy
+  user-site fuite dans l'env) ; **numpy 2** refuse `values[k,0]=array(1,)` dans `convert_values`
+  → backend renvoie `length` en 1-D (B,) = shape documentée ; encodage console cp1252 (Δ).
+
+## ÉTAT D'AVANCEMENT — PISTE 2 (PORTAGE PYTORCH) ✅ RÉGRESSION ; SEG = REPLI ONNX (2026-06-20)
+- **P2.0** ✅ Env `dare2d-torch` (py3.11, numpy 2) : **torch 2.6+cu124, CUDA voit la RTX 5000**,
+  `smp.Unet('resnet18')` se construit. Oracle = `onnxruntime` CPU dans le même env (les `.onnx`
+  Piste 1 sont fidèles à TF à 1e-7 → oracle portable, pas de pont TF).
+- **P2.1** ✅ **Régression portée fidèlement** : `Regression2dTorch` + conversion de poids
+  (`keras_dump.py`→`convert_to_torch.py` : Conv HWIO→OIHW, Dense transpose, **piège Flatten NHWC
+  corrigé** via `permute(0,2,3,1)`). **Parité torch↔ONNX `max|Δ|≈1e-7` sur les 8 sets**. Asserts de
+  shapes à la conversion (garde-fou archi).
+- **P2.2** ✅ **U-Net porté fidèlement en torch** (+ repli ONNX conservé par défaut). `smp.Unet` n'est
+  PAS compatible poids (BN `bn_data`, raccourci 1×1 `stage1_unit1_sc`, ordre **préactivation**), donc
+  `SegmentationUnetTorch` est **écrit à la main d'après le graphe Keras introspecté** (`seg_arch.json`).
+  Détails fidèles : resnet18 **préactivation** (BN→ReLU→conv, raccourci pris APRÈS la 1ʳᵉ BN-ReLU) ;
+  qubvel utilise **ZeroPadding symétrique + conv `valid`** (PAS de `same` asymétrique !) → exact via
+  `F.pad` ; **pad-zéro avant maxpool** (pas le -inf de torch) ; **deux eps BN** (encodeur 2e-5, décodeur
+  1e-3) ; `bn_data` scale=False (γ=1). **Parité vs ONNX : `max|Δ|≈1.3e-7`, masque 100 % sur les 8 sets.**
+- **P2.3** ✅ **Backends torch + commutateur seg** : `torch_backend.py` (`.model.predict` compatible
+  Keras pour reg ET seg) → `api.infer_stack` réutilisé verbatim. `build_hybrid_models(seg_backend=…)` :
+  `"onnx"` (défaut, éprouvé) ou `"torch"` (100 % torch). **End-to-end vs oracle, les DEUX backends :
+  centres identiques, angle/longueur Δ≈1e-6** (`verify_torch_e2e.py --seg-backend onnx|torch`).
+- **B (commutateur dans le plugin napari)** ✅ Sélecteur **Keras / PyTorch** dans le widget. Contrainte
+  clé : Keras (TF 2.12) exige numpy<1.24 → ne tourne QUE dans l'env napari-0.4.18 ; **torch+cu124 ajouté
+  à CET env** (numpy 1.23.5 intact, vérifié), donc bascule live Keras↔PyTorch (GPU) dans une seule
+  session. `to_layer_data` rendu **compatible napari 0.4.18 ET ≥0.5** (`edge_color`/`border_color` via
+  `importlib.metadata`). Coexistence TF+torch : `KMP_DUPLICATE_LIB_OK=TRUE` (clash OpenMP Windows).
+  Validé : `verify_layers` vert (0.4.18), widget instancié, **détections keras == pytorch** (GPU).
+- **Pièges Piste 2/B** : disque plein (cache pip 12 Go purgé) ; `PYTHONNOUSERSITE` ; torch-cuda +
+  `onnxruntime` CPU cohabitent (pas de clash DLL) ; `weights_pt/` gitignoré ; eps BN par section ;
+  TF+torch même process → OpenMP (`KMP_DUPLICATE_LIB_OK`).
+
+**Livrable Piste 2** : régression ET segmentation = vrais PyTorch fidèles (parité ~1e-7). La seg reste
+un **commutateur** (ONNX par défaut = mitigation du risque, torch en option) ; pipeline 100 % torch
+disponible sur GPU, détections identiques à TF.
+
+---
+
 ## 0. Pourquoi migrer (le vrai moteur)
 1. **GPU sur Windows natif.** La machine a une **Quadro RTX 5000 (16 Go)** inutilisée. TF 2.12
    n'a pas de GPU sur Windows natif (≥2.11 → WSL2 obligatoire). **PyTorch a le GPU CUDA en natif
