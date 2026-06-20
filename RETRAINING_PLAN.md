@@ -46,6 +46,19 @@ curated weights. The plugin MUST instead:
 - Both backends write to **`models/{run}/`** with the never-overwrite guard; TF emits `best.h5`,
   torch emits `.pt` (directly usable by the torch inference backend; export to `.onnx`/`.h5` optional).
 
+## ÉTAT D'AVANCEMENT (2026-06-20)
+- ✅ Préprocessing (`retrain/prepare.py`) + driver leave-one-out (`retrain/train_split.py`),
+  validés CPU ; never-overwrite + `models/{run}/` ok.
+- ✅ **Backend PyTorch GPU** (`retrain/torch_train.py`) — reg + seg entraînés sur la RTX 5000
+  (Windows natif, pas de WSL) ; données via les générateurs DARE2D (fidèles).
+- ✅ **Backend TF GPU via WSL2** (`retrain/wsl/`) — env `dare2d-train` (TF 2.12.1 + CUDA 11.8 +
+  cuDNN 8.6), driver lancé via `wsl bash run_train.sh`, checkpoint écrit côté Windows.
+  **Recette des pièges CUDA** (dans setup_a/b) : conda-forge `--override-channels` (ToS defaults),
+  `python -m pip` (pas de pip), **numpy 1.23.5** (DARE2D utilise `np.int`), `/usr/lib/wsl/lib`
+  sur `LD_LIBRARY_PATH` (libcuda), **libdevice** + **ptxas** via wheel `nvidia-cuda-nvcc-cu11`
+  symlinkés (XLA des optimizers expérimentaux Keras, jit_compile=True).
+- ⏳ Reste : **R5** widget napari + toggle (CPU / WSL-GPU / PyTorch-GPU) ; **R6** end-to-end.
+
 ## DECISIONS TAKEN (2026-06-20)
 - **Backend for v1 = TF reuse** (Phase A), then PyTorch GPU port later (Phase B).
 - **WSL2 + CUDA is available** → Phase A trains on the **GPU inside WSL2** with the

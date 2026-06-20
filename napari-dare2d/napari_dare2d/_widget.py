@@ -12,6 +12,10 @@ Both feed the SAME ``infer_stack`` / consensus / layer-mapping code, so only the
 model-building step differs.
 """
 
+import datetime
+import os
+import re
+import subprocess
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -185,3 +189,132 @@ def annotations_widget(
     )
     for data, meta, ltype in layer_data:
         viewer._add_layer_from_data(data, meta, ltype)
+
+
+# ---------------------------------------------------------------------------
+# Retraining widget (leave-one-out) with a backend toggle
+# ---------------------------------------------------------------------------
+# Spawns the retrain drivers in retrain/ as a subprocess (training is long/heavy;
+# a subprocess keeps napari responsive, can use a different env/WSL, and is killable).
+# Three backends -> three commands (see RETRAINING_PLAN.md):
+#   PyTorch (GPU)      : python retrain/torch_train.py    (native Windows GPU)
+#   TensorFlow (CPU)   : python retrain/train_split.py    (Windows, CPU)
+#   TensorFlow (WSL GPU): wsl bash retrain/wsl/run_train.sh (TF 2.12 GPU in WSL2)
+# Each writes models/<run>/<reg|seg>_checkpoints/...; models/best/ is never touched.
+
+_RETRAIN_DIR = _api.PROJECT_ROOT / "retrain"
+_RUN = {"proc": None, "cancel": False}            # shared with the Stop widget
+_EPOCH_RE = re.compile(r"(?:\[epoch |Epoch )(\d+)/(\d+)")
+_EXP_MAP = {"both": ["regression2d", "segmentation2d"],
+            "regression": ["regression2d"], "segmentation": ["segmentation2d"]}
+
+
+def _win_to_wsl(p):
+    """C:\\a\\b -> /mnt/c/a/b (for invoking WSL on a Windows path)."""
+    p = str(p)
+    return f"/mnt/{p[0].lower()}{p[2:].replace(chr(92), '/')}"
+
+
+@magic_factory(
+    call_button="Start retraining",
+    test_set={"choices": [1, 2, 3, 4, 5, 6, 7, 8], "label": "Test set (held out)"},
+    train_sets={"label": "Train sets (blank = complement)"},
+    model={"choices": ["both", "regression", "segmentation"]},
+    backend={"choices": ["PyTorch (GPU)", "TensorFlow (CPU)", "TensorFlow (WSL GPU)"],
+             "label": "Backend"},
+    raw_dir={"mode": "d", "label": "Data folder (raw sets)"},
+    run_name={"label": "Run name (blank = date)"},
+    pbar={"visible": False, "max": 0, "label": "idle"},
+)
+def retrain_widget(
+    test_set: int = 8,
+    train_sets: str = "",
+    model: str = "both",
+    backend: str = "PyTorch (GPU)",
+    raw_dir: Path = _api.PROJECT_ROOT / "data" / "neuroepithelium" / "neuroepithelium",
+    run_name: str = "",
+    epochs: int = 50,
+    steps: int = 1000,
+    crop: int = 256,
+    pbar: ProgressBar = None,
+):
+    """Retrain DARE2D on a subset of sets, testing on the held-out ``test_set``.
+
+    Output goes to ``models/<run>/`` (dated; never overwrites an existing best.h5).
+    Use **Stop retraining** to cancel. Progress/logs also print to the terminal.
+    """
+    if _RUN["proc"] is not None and _RUN["proc"].poll() is None:
+        raise RuntimeError("a retraining is already running (use Stop retraining first)")
+    exps = _EXP_MAP[model]
+    rn = run_name.strip() or datetime.date.today().isoformat()
+    _RUN["cancel"] = False
+
+    def _cmd(exp):
+        common = ["--experiment", exp, "--test-set", str(test_set), "--run-name", rn,
+                  "--epochs", str(epochs), "--steps", str(steps), "--crop", str(crop),
+                  "--raw-root", str(raw_dir)]
+        if train_sets.strip():
+            common += ["--train-sets", train_sets.strip()]
+        if backend.startswith("PyTorch"):
+            return [sys.executable, str(_RETRAIN_DIR / "torch_train.py"), *common]
+        if "WSL" in backend:
+            sh = _win_to_wsl(_RETRAIN_DIR / "wsl" / "run_train.sh")
+            return ["wsl", "-d", "Ubuntu", "bash", sh, *common]
+        return [sys.executable, str(_RETRAIN_DIR / "train_split.py"), *common]
+
+    env = dict(os.environ, KMP_DUPLICATE_LIB_OK="TRUE", SM_FRAMEWORK="tf.keras",
+               PYTHONUNBUFFERED="1")
+
+    @thread_worker
+    def run():
+        for exp in exps:
+            if _RUN["cancel"]:
+                break
+            # decode as UTF-8 w/ replacement: training output has non-cp1252 bytes
+            # (progress bars / warnings) that the Windows default codec rejects.
+            proc = subprocess.Popen(_cmd(exp), stdout=subprocess.PIPE,
+                                    stderr=subprocess.STDOUT, encoding="utf-8",
+                                    errors="replace", bufsize=1,
+                                    env=env, cwd=str(_api.PROJECT_ROOT))
+            _RUN["proc"] = proc
+            for line in proc.stdout:
+                m = _EPOCH_RE.search(line)
+                if m:
+                    yield (exp, int(m.group(1)), int(m.group(2)))
+                if _RUN["cancel"]:
+                    proc.terminate()
+                    break
+            rc = proc.wait()
+            if _RUN["cancel"]:
+                break
+            if rc != 0:
+                raise RuntimeError(f"{exp} retraining failed (exit {rc}); see terminal")
+        return rn
+
+    def _on_yield(v):
+        exp, ep, tot = v
+        pbar.max = tot
+        pbar.value = ep
+        pbar.label = f"{exp} epoch {ep}/{tot}"
+
+    def _done(_=None):
+        pbar.label = "cancelled" if _RUN["cancel"] else f"done -> models/{rn}"
+        _RUN["proc"] = None
+
+    worker = run()
+    worker.yielded.connect(_on_yield)
+    worker.returned.connect(_done)
+    worker.errored.connect(lambda e: (setattr(pbar, "label", f"error: {e}"),
+                                      _RUN.__setitem__("proc", None)))
+    worker.started.connect(lambda: setattr(pbar, "visible", True))
+    worker.start()
+    return worker
+
+
+@magic_factory(call_button="Stop retraining")
+def retrain_stop_widget():
+    """Cancel a running retraining (terminates the training subprocess)."""
+    _RUN["cancel"] = True
+    p = _RUN.get("proc")
+    if p is not None and p.poll() is None:
+        p.terminate()

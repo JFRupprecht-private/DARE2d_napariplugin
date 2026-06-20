@@ -8,8 +8,18 @@ contributions:
     - id: napari-dare2d.annotations_widget
       title: DARE2D annotations viewer
       python_name: napari_dare2d._widget:annotations_widget
+    - id: napari-dare2d.retrain_widget
+      title: DARE2D retraining
+      python_name: napari_dare2d._widget:retrain_widget
+    - id: napari-dare2d.retrain_stop_widget
+      title: DARE2D retraining (stop)
+      python_name: napari_dare2d._widget:retrain_stop_widget
   widgets:
     - command: napari-dare2d.make_widget
       display_name: DARE2D division detection
     - command: napari-dare2d.annotations_widget
       display_name: DARE2D annotations viewer
+    - command: napari-dare2d.retrain_widget
+      display_name: DARE2D retraining
+    - command: napari-dare2d.retrain_stop_widget
+      display_name: DARE2D retraining (stop)
