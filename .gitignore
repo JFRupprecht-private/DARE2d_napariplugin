@@ -2,6 +2,8 @@
 regression_checkpoints/
 segmentation_checkpoints/
 set_8/
+# neuroepithelium: data folder (new annotations + training dataset) — not for VCS
+neuroepithelium/
 *.h5
 *.tif
 *.tiff
