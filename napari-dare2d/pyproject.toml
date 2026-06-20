@@ -7,6 +7,11 @@ name = "napari-dare2d"
 version = "0.1.0"
 description = "napari plugin to run DARE2D cell-division detection and overlay the results"
 requires-python = ">=3.9"
+license = { text = "MIT" }
+classifiers = [
+    "Framework :: napari",
+    "License :: OSI Approved :: MIT License",
+]
 # IMPORTANT: dependencies are intentionally EMPTY. This plugin runs inside the
 # carefully version-pinned env `napari-env-for-DARE2D-claude` (numpy 1.23.5 is
 # the pivot; TF 2.12 forbids numpy>=1.24, napari 0.4.18 is the last napari that
