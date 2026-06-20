@@ -116,14 +116,14 @@ class SingleSplitProcedure(BatchTrainingProcedure):
         return self.scores, self._ckpt_path
 
 
-def resolve_run_dir(run_name, sub, exp_name):
-    """Return models/<run>/<sub>; auto-suffix run if its best.h5 already exists.
+def resolve_run_dir(run_name, sub, exp_name, ckpt_name="best.h5"):
+    """Return models/<run>/<sub>; auto-suffix run if its checkpoint already exists.
     Never returns models/best/."""
     base = run_name
     i = 1
     while True:
         run = "best_REFUSED" if base == "best" else (base if i == 1 else f"{base}_{i}")
-        ckpt = MODELS_DIR / run / sub / f"checkpoints_{exp_name}" / "best.h5"
+        ckpt = MODELS_DIR / run / sub / f"checkpoints_{exp_name}" / ckpt_name
         if run != "best" and not ckpt.exists():
             return MODELS_DIR / run / sub, run
         i += 1
