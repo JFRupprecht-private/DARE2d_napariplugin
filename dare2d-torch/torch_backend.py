@@ -26,7 +26,22 @@ sys.path.insert(0, str(_HERE))
 
 import models_torch as M  # noqa: E402
 
-WEIGHTS = _HERE / "weights_pt"
+# Torch weights ship via Zenodo into models/best/torch_weights (next to the .h5
+# checkpoints, placed there by the napari "Download DARE2D data" button) so end users
+# never have to regenerate them. Prefer the dev-generated dare2d-torch/weights_pt
+# (keras_dump.py -> convert_to_torch.py) when present, so a local regeneration wins.
+_SHIPPED_WEIGHTS = _HERE.parent / "models" / "best" / "torch_weights"
+_DEV_WEIGHTS = _HERE / "weights_pt"
+
+
+def _resolve_weights():
+    for d in (_DEV_WEIGHTS, _SHIPPED_WEIGHTS):
+        if any(d.glob("torch_reg_set_*.pt")):
+            return d
+    return _SHIPPED_WEIGHTS  # documented download target (used in the "missing" message)
+
+
+WEIGHTS = _resolve_weights()
 
 
 def default_device():

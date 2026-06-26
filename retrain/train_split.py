@@ -29,7 +29,8 @@ os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
 
 _HERE = Path(__file__).resolve().parent
 PROJECT_ROOT = _HERE.parent
-_REPO = PROJECT_ROOT / "DARE2d-main"
+# Flattened/merged layout: dare2d/, scripts/, config/, annotator/ live at the repo root.
+_REPO = PROJECT_ROOT
 for p in (str(_REPO), str(_HERE)):
     if p not in sys.path:
         sys.path.insert(0, p)

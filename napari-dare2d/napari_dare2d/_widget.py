@@ -47,12 +47,15 @@ def _pytorch_builder(sets):
             f"PyTorch backend unavailable: {e}. Install torch into this env and "
             f"generate weights with dare2d-torch/convert_to_torch.py."
         ) from e
-    missing = [n for n in sets if not (tb.WEIGHTS / f"torch_reg_set_{n}.pt").exists()]
+    missing = [n for n in sets
+               if not (tb.WEIGHTS / f"torch_reg_set_{n}.pt").exists()
+               or not (tb.WEIGHTS / f"torch_seg_set_{n}.pt").exists()]
     if missing:
         raise RuntimeError(
             f"missing torch weights for set(s) {missing} in {tb.WEIGHTS}. "
-            f"Run: python dare2d-torch/convert_to_torch.py --kind reg --sets 1-8 "
-            f"(and --kind seg)."
+            f"Switch the backend to 'keras', or fetch the .pt via 'Download DARE2D data' "
+            f"(ships them to models/best/torch_weights); devs can regenerate with "
+            f"python dare2d-torch/convert_to_torch.py --kind reg --sets 1-8 (and --kind seg)."
         )
     return lambda i: tb.build_hybrid_models(sets[i], seg_backend="torch")
 
@@ -192,6 +195,24 @@ def annotations_widget(
         viewer._add_layer_from_data(data, meta, ltype)
 
 
+@magic_factory(
+    call_button="Load movie",
+    folder={"mode": "d", "label": "Set folder"},
+)
+def load_movie_widget(folder: Path = _api.DEFAULT_ANNOT_DIR):
+    """Load just the set's movie .tif as an Image layer (no annotations).
+
+    Opens the lone movie tiff in ``folder`` (defaults to set 8) as a plain Image
+    layer -- ready to pick in the DARE2D division-detection widget's image dropdown.
+    Fast (one file read), so it runs synchronously.
+    """
+    viewer = napari.current_viewer()
+    if viewer is None:
+        raise RuntimeError("no active napari viewer")
+    for data, meta, ltype in _api.movie_to_layer_data(folder):
+        viewer._add_layer_from_data(data, meta, ltype)
+
+
 # ---------------------------------------------------------------------------
 # Retraining widget (leave-one-out) with a backend toggle
 # ---------------------------------------------------------------------------
@@ -232,7 +253,7 @@ def retrain_widget(
     train_sets: str = "",
     model: str = "both",
     backend: str = "PyTorch (GPU)",
-    raw_dir: Path = _api.PROJECT_ROOT / "data" / "neuroepithelium" / "neuroepithelium",
+    raw_dir: Path = _api.DATA_DIR,
     run_name: str = "",
     epochs: int = 50,
     steps: int = 1000,

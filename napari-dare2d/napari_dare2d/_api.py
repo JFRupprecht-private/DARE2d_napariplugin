@@ -42,7 +42,12 @@ CONFIG_DIR = str(_REPO / "config")
 MODELS_DIR = PROJECT_ROOT / "models"
 DEFAULT_REG_DIR = MODELS_DIR / "best" / "regression_checkpoints"
 DEFAULT_SEG_DIR = MODELS_DIR / "best" / "segmentation_checkpoints"
-DEFAULT_ANNOT_DIR = PROJECT_ROOT / "set_8"
+# Dataset root produced by the "Download DARE2D data" button (and consumed by the
+# retraining widget): data/neuroepithelium/neuroepithelium/set_{1..8}/, each holding
+# the movie .tiff + ground-truth division_position*.npy.
+DATA_DIR = PROJECT_ROOT / "data" / "neuroepithelium" / "neuroepithelium"
+# Annotations viewer defaults to set 8's ground truth, in the downloaded layout.
+DEFAULT_ANNOT_DIR = DATA_DIR / "set_8"
 
 # scripts/ has no __init__.py; it imports as an implicit namespace package
 # once the repo root is on sys.path.
@@ -79,11 +84,13 @@ __all__ = [
     "to_layer_data",
     "annotation_pairs",
     "annotations_to_layer_data",
+    "movie_to_layer_data",
     "find_checkpoints",
     "parse_sets",
     "resolve_frames",
     "CONFIG_DIR",
     "MODELS_DIR",
+    "DATA_DIR",
     "DEFAULT_REG_DIR",
     "DEFAULT_SEG_DIR",
     "DEFAULT_ANNOT_DIR",
@@ -475,6 +482,38 @@ def annotation_pairs(rows, frame_base=1):
         t = int(fa) - frame_base
         out.append(((t, float(ya), float(xa)), (t, float(yb), float(xb))))
     return out
+
+
+def _find_set_movie(folder):
+    """The set's movie tiff sits next to the division_position*.npy: pick the lone
+    .tif/.tiff, skipping derived overlays (*_result.tiff / *_raw.tiff)."""
+    cands = sorted(p for p in Path(folder).glob("*.tif*")
+                   if not p.stem.endswith(("_result", "_raw")))
+    return cands[0] if cands else None
+
+
+def _read_stack(path):
+    """Read a (T, Y, X) tiff stack (tifffile, falling back to skimage.io)."""
+    try:
+        import tifffile
+        return tifffile.imread(str(path))
+    except Exception:
+        from skimage import io as skio
+        return skio.imread(str(path))
+
+
+def movie_to_layer_data(folder=DEFAULT_ANNOT_DIR):
+    """Load the set folder's movie ``.tif`` as a single napari Image ``LayerDataTuple``.
+
+    Finds the lone movie tiff next to the ``division_position*.npy`` (skipping derived
+    ``*_result``/``*_raw`` overlays) and returns ``[(stack, meta, "image")]`` -- a
+    plain Image layer, NO ground truth. Raises FileNotFoundError if the folder has no
+    ``.tif``/``.tiff``.
+    """
+    movie = _find_set_movie(Path(folder))
+    if movie is None:
+        raise FileNotFoundError(f"no movie .tif/.tiff in {folder}")
+    return [(_read_stack(movie), {"name": movie.stem}, "image")]
 
 
 def annotations_to_layer_data(folder=DEFAULT_ANNOT_DIR, name="annotations",

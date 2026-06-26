@@ -28,7 +28,8 @@ from skimage import io
 
 _HERE = Path(__file__).resolve().parent
 PROJECT_ROOT = _HERE.parent
-_REPO = PROJECT_ROOT / "DARE2d-main"
+# Flattened/merged layout: annotator/, dare2d/, scripts/, config/ live at the repo root.
+_REPO = PROJECT_ROOT
 sys.path.insert(0, str(_REPO))
 
 # reuse the exact crop logic the original training data was built with

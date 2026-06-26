@@ -22,6 +22,7 @@ _API = "https://zenodo.org/api/records/{}"
 _TARGETS = {
     "regression_checkpoints.zip":   Path("models") / "best" / "regression_checkpoints",
     "segmentation_checkpoints.zip": Path("models") / "best" / "segmentation_checkpoints",
+    "torch_weights.zip":            Path("models") / "best" / "torch_weights",
     "neuroepithelium.zip":          Path("data") / "neuroepithelium",
 }
 
