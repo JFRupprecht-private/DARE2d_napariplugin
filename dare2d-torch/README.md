@@ -84,7 +84,7 @@ Keeping ONNX the default is deliberate risk mitigation; the torch path is there 
 
 Two envs, bridged by the `.onnx` files (the TF env stays the numerical oracle).
 
-### TF env (export + parity) — existing `napari-env-for-DARE2D-claude`
+### TF env (export + parity) — existing `napari-env-for-DARE2D`
 Added, without disturbing the numpy 1.23.5 / protobuf 4.25.9 pins (constraints
 file pins them; `tf2onnx` installed `--no-deps` to dodge its `protobuf<4` pin):
 ```bash

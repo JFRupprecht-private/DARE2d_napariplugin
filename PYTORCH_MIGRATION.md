@@ -128,7 +128,7 @@ avec la **régression d'abord** (gain facile) puis le **U-Net** en pesant le ris
   `tifffile`, `hydra-core`, `omegaconf`, `scikit-learn`.
 - **Spike d'entrée** : `python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"`
   → doit afficher `True Quadro RTX 5000`.
-- (Pour la stratégie A/validation, garder l'**ancien env TF** `napari-env-for-DARE2D-claude` comme
+- (Pour la stratégie A/validation, garder l'**ancien env TF** `napari-env-for-DARE2D` comme
   oracle numérique.)
 
 ---

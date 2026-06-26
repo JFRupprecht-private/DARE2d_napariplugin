@@ -18,11 +18,11 @@ DARE2D itself does **not** use napari for its core pipeline — it's a TF/Keras 
 - `tensorflow-graphics` and `tensorflow-probability` (in `requirements.txt`) are **imported nowhere** → safe to drop. These are the two worst to install on Windows.
 
 ## Decisions made
-- **Conda env created**: `napari-env-for-DARE2D-claude` at `C:\Users\ruppr\.conda\envs\napari-env-for-DARE2D-claude`, **Python 3.10.20** + pip. (README suggests 3.9; TF 2.12 supports 3.8–3.11, napari prefers ≥3.9, 3.10 kept — user confirmed: keep the existing env, do NOT recreate.)
+- **Conda env created**: `napari-env-for-DARE2D` at `C:\Users\ruppr\.conda\envs\napari-env-for-DARE2D`, **Python 3.10.20** + pip. (README suggests 3.9; TF 2.12 supports 3.8–3.11, napari prefers ≥3.9, 3.10 kept — user confirmed: keep the existing env, do NOT recreate.)
 - **GPU decision (2026-06-17)**: **CPU for now**. TF 2.12 has no GPU on native Windows; code stays GPU-ready (switch to WSL2/Linux later → GPU with no code change). Do not chase native-Windows GPU.
 
 ## ENV FULLY INSTALLED (2026-06-17) — `pip check` clean
-All deps installed into `napari-env-for-DARE2D-claude`. **numpy 1.23.5 is the pivot** — TF 2.12 pins `numpy<1.24`, so the WHOLE stack is frozen to the 2023 generation. Key versions:
+All deps installed into `napari-env-for-DARE2D`. **numpy 1.23.5 is the pivot** — TF 2.12 pins `numpy<1.24`, so the WHOLE stack is frozen to the 2023 generation. Key versions:
 - numpy **1.23.5**, tensorflow/keras **2.12.0** (CPU), napari **0.4.18** (last napari working with numpy 1.23; napari ≥0.7 needs numpy≥2 → conflict), magicgui 0.7.3, npe2 0.7.9.
 - scikit-image 0.21, scikit-learn 1.3.2, opencv-python 4.11.0.86, albumentations 1.3.1, segmentation-models 1.0.1, zarr 2.16.1, pandas 2.0.3, matplotlib 3.8.4, numba 0.57.1, vispy 0.12.2, pydantic 1.10.26.
 - dare2d 1.0 installed `-e`.
@@ -68,7 +68,7 @@ All deps installed into `napari-env-for-DARE2D-claude`. **numpy 1.23.5 is the pi
   - `infer_stack(stack, reg, seg, frames=None, progress_cb=None) -> {frame0: [{x,y,angle,length}]}` — refactor of `multistage_detection2d.main` minus disk I/O / viz. Reuses `inference_strategy`, `crop_img_from_center` (imported from the script via namespace pkg) + `extract_centers`, `convert_values` (from installed `dare2d`).
   - `run_ensemble(stack, reg_ckpts[], seg_ckpts[], frames=None) -> {frame1based: [(model_id,x,y,angle,length)]}` — loops the 8 sets, `K.clear_session()` between them.
   - `consensus(all_dets, n_frames, eps=10, min_models=6, num_models=8, angle_mode="auto") -> {frame1based: [consensus_dict]}` — in-memory; reuses `aggregate_cluster_pick_signed`, `cluster_hdbscan`, `detect_angle_units_and_convert`; drops the wedge/halo drawing + TIFF/CSV + temporal dedup.
-- `verify_api.py` — the runnable check (CLAUDE.md). HARD-asserts the API contract; SOFT-reports reference alignment. **Result: OK.** Run: `<env>/python.exe napari-dare2d/verify_api.py`.
+- `verify_api.py` — the runnable check. HARD-asserts the API contract; SOFT-reports reference alignment. **Result: OK.** Run: `<env>/python.exe napari-dare2d/verify_api.py`.
 
 **Verified facts / decisions for step 4:**
 - `segmentation_models` REQUIRED, confirmed (builds `sm.Unet(resnet18, encoder_weights=None)` → 100% local, no download).

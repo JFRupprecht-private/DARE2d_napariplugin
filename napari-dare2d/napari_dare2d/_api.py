@@ -24,10 +24,10 @@ from pathlib import Path
 # segmentation_models must see the framework BEFORE it is imported anywhere.
 os.environ.setdefault("SM_FRAMEWORK", "tf.keras")
 
-# --- locate the DARE2D repo that this plugin wraps -------------------------
-# Layout (self-contained project):
-#   DARE2Dnapariplugin/                 <- PROJECT_ROOT
-#     DARE2d-main/                       (the wrapped code + config)
+# --- locate the DARE2D core that this plugin wraps -------------------------
+# Merged-project layout:
+#   DARE2d/                              <- PROJECT_ROOT (repo root = the DARE2D core)
+#     dare2d/  scripts/  config/         (the wrapped code + Hydra config)
 #     regression_checkpoints/ segmentation_checkpoints/
 #     napari-dare2d/napari_dare2d/_api.py  <- this file
 # ponytail: paths are derived from __file__ relative to that fixed layout.
@@ -35,7 +35,7 @@ os.environ.setdefault("SM_FRAMEWORK", "tf.keras")
 # dirs explicitly (the widget already exposes the checkpoint dirs as inputs).
 _HERE = Path(__file__).resolve().parent
 PROJECT_ROOT = _HERE.parents[1]
-_REPO = PROJECT_ROOT / "DARE2d-main"
+_REPO = PROJECT_ROOT
 CONFIG_DIR = str(_REPO / "config")
 # Curated ("best") checkpoints live under models/best/ (read-only; retraining writes
 # new runs to sibling models/<run>/ folders, never here -- see RETRAINING_PLAN.md).

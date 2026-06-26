@@ -25,6 +25,7 @@ import numpy as np
 from magicgui import magic_factory
 from magicgui.widgets import ProgressBar
 from napari.qt.threading import thread_worker
+from napari.utils import notifications
 
 from . import _api
 
@@ -318,3 +319,92 @@ def retrain_stop_widget():
     p = _RUN.get("proc")
     if p is not None and p.poll() is None:
         p.terminate()
+
+
+# ---------------------------------------------------------------------------
+# Download data (Zenodo) + Save results
+# ---------------------------------------------------------------------------
+@magic_factory(
+    call_button="Download DARE2D data (Zenodo)",
+    dest={"widget_type": "FileEdit", "mode": "d", "label": "Project root",
+          "tooltip": "Project root to populate: checkpoints -> models/best/, dataset -> "
+                     "data/neuroepithelium/ (Zenodo record 17442227, ~2 GB)."},
+    pbar={"visible": False, "max": 0, "label": "idle"},
+)
+def dare2d_download_widget(dest: Path = _api.PROJECT_ROOT, pbar: ProgressBar = None):
+    """Download the DARE2D checkpoints + neuroepithelium dataset from Zenodo (~2 GB).
+
+    Checkpoints land in ``models/best/`` (the inference defaults) and the dataset in
+    ``data/neuroepithelium/``. Runs in a worker thread; percent prints to the terminal.
+    """
+    from ._data import download_dataset
+
+    state = {"pct": -5}
+
+    def _progress(done, total):
+        if total:
+            pct = int(100 * done / total)
+            if pct >= state["pct"] + 5:
+                state["pct"] = pct
+                print(f"[DARE2D] download {pct}%  ({done / 1e6:.0f}/{total / 1e6:.0f} MB)")
+
+    @thread_worker
+    def run():
+        return download_dataset(dest, progress_cb=_progress,
+                                log=lambda m: print(f"[DARE2D] {m}"))
+
+    def _done(root):
+        pbar.label = f"downloaded → {root}"
+        notifications.show_info(f"DARE2D data ready under {root}")
+
+    worker = run()
+    worker.returned.connect(_done)
+    worker.errored.connect(lambda e: (setattr(pbar, "label", "download failed"),
+                                      notifications.show_error(f"DARE2D download failed: {e}")))
+    worker.started.connect(lambda: setattr(pbar, "visible", True))
+    worker.start()
+    notifications.show_info("DARE2D: download started — progress in the terminal.")
+    return worker
+
+
+@magic_factory(
+    call_button="Save DARE2D results",
+    out_dir={"widget_type": "FileEdit", "mode": "d", "label": "Output folder",
+             "tooltip": "Writes division_position*.npy, *_summary.csv and an overlay "
+                        "*_result.tiff into this folder."},
+    draw_overlay={"label": "Also save overlay movie (.tiff)"},
+)
+def save_results_widget(out_dir: Path = _api.PROJECT_ROOT / "output",
+                        draw_overlay: bool = True):
+    """Save the current DARE2D detections (the Points layer) to disk.
+
+    Exports per-frame ``division_position*.npy`` ([x, y] pairs), a summary CSV, and
+    (optionally) a ``*_result.tiff`` overlay 'movie'. Run **Run DARE2D** first.
+    """
+    import napari.layers as nl
+
+    viewer = napari.current_viewer()
+    if viewer is None:
+        raise RuntimeError("no active napari viewer")
+    pts = next((ly for ly in reversed(viewer.layers)
+                if isinstance(ly, nl.Points) and "DARE2D" in str(ly.name)), None)
+    if pts is None:
+        notifications.show_warning("No DARE2D Points layer found — run DARE2D first.")
+        return
+    img = next((ly for ly in reversed(viewer.layers) if isinstance(ly, nl.Image)), None)
+    if img is None:
+        notifications.show_warning("No Image layer found to render the overlay.")
+        return
+
+    feats = {}
+    try:  # napari 0.5: a features DataFrame; fall back to the older properties dict
+        df = pts.features
+        for c in df.columns:
+            feats[c] = np.asarray(df[c])
+    except Exception:
+        feats = {k: np.asarray(v) for k, v in (pts.properties or {}).items()}
+
+    from ._data import save_results
+    out = save_results(np.asarray(img.data), np.asarray(pts.data), feats,
+                       out_dir, image_name=str(img.name), draw=draw_overlay)
+    notifications.show_info(f"DARE2D: saved results → {out}")

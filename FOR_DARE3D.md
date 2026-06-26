@@ -16,7 +16,7 @@ en layers napari. Le code DARE n'utilise pas napari nativement : ce sont des **C
 `subprocess`. On a écrit une **fine couche API in-process** par-dessus, puis un widget.
 
 ## 2. Environnement (le plus transférable — mêmes contraintes attendues en 3D)
-- Env conda **`napari-env-for-DARE2D-claude`**, Python 3.10, **CPU** (TF 2.12 n'a pas de GPU
+- Env conda **`napari-env-for-DARE2D`**, Python 3.10, **CPU** (TF 2.12 n'a pas de GPU
   sur Windows natif ; GPU = WSL2/Linux, sans changement de code).
 - **numpy 1.23.5 est le pivot** : TF 2.12 impose `numpy<1.24`. Toute la stack est donc figée
   à la génération 2023 : **napari 0.4.18** (la dernière qui tolère numpy 1.23 ; napari ≥0.7

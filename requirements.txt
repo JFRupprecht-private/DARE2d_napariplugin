@@ -1,0 +1,39 @@
+# DARE2D dependencies.
+# HARD CONSTRAINT: numpy must stay <1.24 — TensorFlow 2.12 requires it. That single pin fixes the
+# rest of the stack (pip resolves a numpy-1.23-compatible napari automatically). Install into a
+# fresh conda env (python 3.10) so nothing gets re-resolved against newer numpy.
+
+# --- core deep-learning stack ---
+tensorflow==2.12.0
+keras==2.12.0
+numpy==1.23.5
+segmentation-models
+greenlet==2.0.2
+
+# --- imaging / data / numerics ---
+opencv-python==4.11.0.86
+albumentations
+scikit-image
+scikit-learn
+scipy
+pandas
+matplotlib
+tifffile
+imageio
+
+# --- config / logging / CLI ---
+hydra-core
+hydra-colorlog
+omegaconf
+click
+mlflow
+tensorboard
+tqdm
+rich
+gdown
+ipykernel
+
+# --- napari (GUI) ---
+# Install napari as a SEPARATE README step (`pip install "napari[all]"`): pinning it here
+# next to numpy 1.23.5 does not reliably pull a Qt backend on a fresh resolve. napari brings
+# magicgui + npe2 with it.
