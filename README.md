@@ -55,7 +55,8 @@ notebooks/                    # data analysis / training-data display
 
 ## Installation
 
-All dependencies are captured in **`requirements.txt`**. The one hard constraint is
+Core dependencies are captured in **`requirements.txt`**; the optional GPU/PyTorch backend
+adds **`requirements-torch.txt`** (step 5 below). The one hard constraint is
 **numpy `<1.24`** (pinned to `1.23.5`): TensorFlow 2.12 requires it, and that in turn fixes the
 rest of the stack (pip resolves a numpy-compatible napari automatically). Use a fresh conda env so
 nothing is re-resolved against newer numpy.
@@ -78,13 +79,20 @@ pip install "napari[all]"
 # 4) the DARE2D core, then the plugin (no deps -> don't disturb the pins)
 pip install -e .
 pip install --no-build-isolation --no-deps -e ./napari-dare2d
+
+# 5) (optional) GPU inference backend — PyTorch, into the SAME env (numpy 1.23.5 stays put)
+pip install -r requirements-torch.txt
 ```
 
 > On a corporate network you may need `--trusted-host pypi.org --trusted-host files.pythonhosted.org`.
 >
-> **Optional GPU (PyTorch backend).** `pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124`
-> (numpy 1.23.5 stays put). Enables the widget's `pytorch` inference backend (same detections,
-> parity ~1e-7); see `dare2d-torch/README.md`.
+> **Optional GPU (PyTorch backend).** Step 5 installs the pinned Torch stack from
+> **`requirements-torch.txt`** (`torch==2.6.0+cu124`, `torchvision==0.21.0+cu124`) into the
+> *same* env: Torch 2.6 is numpy-1.23 compatible, so `numpy==1.23.5` is untouched and
+> TensorFlow keeps working. This enables the widget's `pytorch` inference backend (same
+> detections, parity ~1e-7). Generate the per-set `.pt` weights once via
+> `dare2d-torch/convert_to_torch.py`; see `dare2d-torch/README.md`. (For a non-CUDA-12.4
+> machine, swap `cu124` for your toolkit in `requirements-torch.txt`.)
 
 ## Models & data
 

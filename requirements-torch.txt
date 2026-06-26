@@ -1,0 +1,18 @@
+# DARE2D — optional GPU (PyTorch) inference backend.
+#
+# Install INTO THE SAME conda env as requirements.txt, AFTER it. These are the exact
+# versions proven in the reference env (Python 3.10): Torch 2.6 is numpy-1.23 compatible,
+# so the numpy==1.23.5 pin (and therefore TensorFlow 2.12) is left untouched.
+#
+# Enables the napari widget's `pytorch` inference backend (GPU/CUDA); detections match the
+# Keras/CPU backend (parity ~1e-7). You still generate the per-set `.pt` weights once via
+# `dare2d-torch/convert_to_torch.py` — see dare2d-torch/README.md.
+#
+#   pip install -r requirements-torch.txt
+#
+# Different CUDA toolkit? Swap cu124 for your build (e.g. cu121) in the index URL below;
+# pip selects the matching Torch wheel.
+
+--extra-index-url https://download.pytorch.org/whl/cu124
+torch==2.6.0+cu124
+torchvision==0.21.0+cu124
