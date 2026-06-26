@@ -26,22 +26,34 @@ sys.path.insert(0, str(_HERE))
 
 import models_torch as M  # noqa: E402
 
-# Torch weights ship via Zenodo into models/best/torch_weights (next to the .h5
-# checkpoints, placed there by the napari "Download DARE2D data" button) so end users
-# never have to regenerate them. Prefer the dev-generated dare2d-torch/weights_pt
-# (keras_dump.py -> convert_to_torch.py) when present, so a local regeneration wins.
-_SHIPPED_WEIGHTS = _HERE.parent / "models" / "best" / "torch_weights"
-_DEV_WEIGHTS = _HERE / "weights_pt"
+# Dev-generated weights (keras_dump.py -> convert_to_torch.py): flat
+# torch_{reg,seg}_set_N.pt under dare2d-torch/weights_pt, used by build_hybrid_models
+# and the verify_* dev scripts. The napari RUNTIME instead loads best.pt from the SAME
+# checkpoint dirs as Keras (find_torch_checkpoints), so shipped/retrained weights need
+# no rename.
+WEIGHTS = _HERE / "weights_pt"
 
 
-def _resolve_weights():
-    for d in (_DEV_WEIGHTS, _SHIPPED_WEIGHTS):
-        if any(d.glob("torch_reg_set_*.pt")):
-            return d
-    return _SHIPPED_WEIGHTS  # documented download target (used in the "missing" message)
+def find_torch_checkpoints(reg_dir, seg_dir, sets):
+    """Resolve ``best.pt`` paths under ``<dir>/checkpoints_set_{n}_all_but_target/best.pt``.
 
-
-WEIGHTS = _resolve_weights()
+    The torch twin of ``napari_dare2d._api.find_checkpoints`` (which does this for
+    ``best.h5``), so the PyTorch backend consumes the SAME checkpoint folders as Keras --
+    including a retrained run dir (``models/<run>/{reg,seg}_checkpoints``), with no
+    copy/rename. Raises FileNotFoundError naming the first missing ``best.pt``.
+    """
+    reg_dir, seg_dir = Path(reg_dir), Path(seg_dir)
+    reg, seg = [], []
+    for n in sets:
+        r = reg_dir / f"checkpoints_set_{n}_all_but_target" / "best.pt"
+        s = seg_dir / f"checkpoints_set_{n}_all_but_target" / "best.pt"
+        if not r.exists():
+            raise FileNotFoundError(f"torch regression weight missing: {r}")
+        if not s.exists():
+            raise FileNotFoundError(f"torch segmentation weight missing: {s}")
+        reg.append(str(r))
+        seg.append(str(s))
+    return reg, seg
 
 
 def default_device():

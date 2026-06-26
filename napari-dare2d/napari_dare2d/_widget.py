@@ -6,8 +6,8 @@ All heavy lifting / data mapping lives in ``_api`` (napari-free, tested headless
 
 Two inference backends, selectable in the widget:
   - **keras**  : the original TF/Keras models (CPU on native Windows).
-  - **pytorch**: the faithful torch port in ``dare2d-torch/`` (GPU), loaded by set
-    number from ``dare2d-torch/weights_pt/*.pt``. Produces the same detections.
+  - **pytorch**: the faithful torch port in ``dare2d-torch/`` (GPU), loading ``best.pt``
+    from the SAME checkpoint dirs as Keras. Produces the same detections.
 Both feed the SAME ``infer_stack`` / consensus / layer-mapping code, so only the
 model-building step differs.
 """
@@ -30,12 +30,13 @@ from napari.utils import notifications
 from . import _api
 
 
-def _pytorch_builder(sets):
+def _pytorch_builder(sets, reg_dir, seg_dir):
     """Return ``build(i) -> (reg, seg)`` torch models, or raise a clear error.
 
-    The torch port lives in the sibling ``dare2d-torch/`` folder (single home for
-    both the porting scripts and the runtime backend); add it to sys.path lazily,
-    inside the worker, so selecting Keras never imports torch.
+    Loads ``best.pt`` from the SAME checkpoint dirs as the Keras backend
+    (``<dir>/checkpoints_set_{n}_all_but_target/best.pt``), so a retrained run dir works
+    with no rename. The torch port lives in the sibling ``dare2d-torch/`` folder; add it
+    to sys.path lazily, inside the worker, so selecting Keras never imports torch.
     """
     dt = _api.PROJECT_ROOT / "dare2d-torch"
     if str(dt) not in sys.path:
@@ -44,20 +45,19 @@ def _pytorch_builder(sets):
         import torch_backend as tb
     except Exception as e:  # torch not installed, etc.
         raise RuntimeError(
-            f"PyTorch backend unavailable: {e}. Install torch into this env and "
-            f"generate weights with dare2d-torch/convert_to_torch.py."
+            f"PyTorch backend unavailable: {e}. Install torch into this env "
+            f"(see requirements-torch.txt)."
         ) from e
-    missing = [n for n in sets
-               if not (tb.WEIGHTS / f"torch_reg_set_{n}.pt").exists()
-               or not (tb.WEIGHTS / f"torch_seg_set_{n}.pt").exists()]
-    if missing:
+    try:
+        reg_pts, seg_pts = tb.find_torch_checkpoints(reg_dir, seg_dir, sets)
+    except FileNotFoundError as e:
         raise RuntimeError(
-            f"missing torch weights for set(s) {missing} in {tb.WEIGHTS}. "
-            f"Switch the backend to 'keras', or fetch the .pt via 'Download DARE2D data' "
-            f"(ships them to models/best/torch_weights); devs can regenerate with "
-            f"python dare2d-torch/convert_to_torch.py --kind reg --sets 1-8 (and --kind seg)."
-        )
-    return lambda i: tb.build_hybrid_models(sets[i], seg_backend="torch")
+            f"{e}. Switch the backend to 'keras', or fetch the weights via 'Download "
+            f"DARE2D data' (ships best.pt next to best.h5 in the checkpoint folders); "
+            f"devs regenerate with dare2d-torch/convert_to_torch.py."
+        ) from e
+    return lambda i: (tb.load_torch_regression(reg_pts[i]),
+                      tb.load_torch_segmentation(seg_pts[i]))
 
 
 @magic_factory(
@@ -109,7 +109,7 @@ def dare2d_widget(
     @thread_worker
     def run():
         if backend == "pytorch":
-            build = _pytorch_builder(sets)
+            build = _pytorch_builder(sets, reg_dir, seg_dir)
         else:
             build = lambda i: _api.build_models(reg_ckpts[i], seg_ckpts[i])  # noqa: E731
 

@@ -90,9 +90,11 @@ pip install -r requirements-torch.txt
 > **`requirements-torch.txt`** (`torch==2.6.0+cu124`, `torchvision==0.21.0+cu124`) into the
 > *same* env: Torch 2.6 is numpy-1.23 compatible, so `numpy==1.23.5` is untouched and
 > TensorFlow keeps working. This enables the widget's `pytorch` inference backend (same
-> detections, parity ~1e-7). The per-set `.pt` weights **ship with the Zenodo data** — the
-> **DARE2D download data** button places them in `models/best/torch_weights/`, so users don't
-> regenerate anything (developers can, via `dare2d-torch/convert_to_torch.py`; see
+> detections, parity ~1e-7). The `.pt` weights **ship with the Zenodo data** — the **DARE2D
+> download data** button unzips `best.pt` next to each `best.h5` in
+> `models/best/{regression,segmentation}_checkpoints/`, so the `pytorch` backend uses the **same
+> checkpoint fields as Keras** (and a retrained run dir works the same way, no rename). Users
+> regenerate nothing; developers can, via `dare2d-torch/convert_to_torch.py` (see
 > `dare2d-torch/README.md`). (For a non-CUDA-12.4 machine, swap `cu124` for your toolkit in
 > `requirements-torch.txt`.)
 
@@ -100,8 +102,8 @@ pip install -r requirements-torch.txt
 
 Published on **Zenodo** ([record 17442227](https://zenodo.org/records/17442227)):
 `regression_checkpoints.zip`, `segmentation_checkpoints.zip`, `neuroepithelium.zip`, and
-`torch_weights.zip` (the pre-converted `.pt` for the GPU/`pytorch` backend). Unzip at the
-repository root into this layout (kept local, not in git):
+`torch_weights.zip` (pre-converted `best.pt` for the GPU/`pytorch` backend, unzipped next to
+each `best.h5`). Unzip at the repository root into this layout (kept local, not in git):
 
 ```
 regression_checkpoints/checkpoints_set_{1..8}_all_but_target/best.h5
