@@ -76,10 +76,10 @@ Windows GPU).
 **GPU option (PyTorch backend).** The plugin can also run a faithful PyTorch port
 of both models on the GPU — selectable in the widget via the **Inference backend**
 dropdown (`keras` vs `pytorch`), same detections (parity ~1e-7). PyTorch coexists
-with TF in this same env (`pip install torch torchvision --index-url
-https://download.pytorch.org/whl/cu124`; numpy 1.23.5 stays put). The port and its
-weights live in `dare2d-torch/` — see `dare2d-torch/README.md` and
-`PYTORCH_MIGRATION.md`.
+with TF in this same env — pinned in `dare2d-torch/requirements-pytorch.txt`
+(`torch==2.6.0+cu124`); install with `pip install -r dare2d-torch/requirements-pytorch.txt
+--index-url https://download.pytorch.org/whl/cu124` (numpy 1.23.5 stays put). The port
+and its weights live in `dare2d-torch/` — see `dare2d-torch/README.md` and `PYTORCH_MIGRATION.md`.
 
 ```bash
 # Python 3.10 conda env (an env named `napari-env-for-DARE2D-claude` is already set up)

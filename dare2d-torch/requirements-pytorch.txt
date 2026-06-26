@@ -1,0 +1,18 @@
+# PyTorch (GPU, CUDA 12.4) for DARE2D's torch backends:
+#   - inference : the napari plugin "pytorch" backend
+#                 (Regression2dTorch / SegmentationUnetTorch, both pure torch.nn)
+#   - training  : retrain/torch_train.py (native-Windows GPU training)
+#
+# These are ADDED to the existing TF env (napari-env-for-DARE2D-claude). torch coexists
+# with TensorFlow 2.12 in one process (set KMP_DUPLICATE_LIB_OK=TRUE for the OpenMP clash)
+# and does NOT disturb the numpy 1.23.5 pin.
+#
+# Install (NVIDIA GPU + driver supporting CUDA 12.4 required; here RTX 5000 / driver 580.92):
+#   pip install -r dare2d-torch/requirements-pytorch.txt \
+#       --index-url https://download.pytorch.org/whl/cu124
+#
+# The faithful torch models are plain torch.nn (no segmentation-models-pytorch / timm
+# needed at runtime), so torch + torchvision is the whole PyTorch requirement.
+
+torch==2.6.0+cu124
+torchvision==0.21.0+cu124

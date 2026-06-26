@@ -84,13 +84,17 @@ Keeping ONNX the default is deliberate risk mitigation; the torch path is there 
 
 Two envs, bridged by the `.onnx` files (the TF env stays the numerical oracle).
 
-### TF env (export + parity) — existing `napari-env-for-DARE2D-claude`
-Added, without disturbing the numpy 1.23.5 / protobuf 4.25.9 pins (constraints
-file pins them; `tf2onnx` installed `--no-deps` to dodge its `protobuf<4` pin):
+### TF env (export + parity + the torch/inference+training backends) — `napari-env-for-DARE2D-claude`
+Pinned requirements (added without disturbing numpy 1.23.5 / protobuf 4.25.9):
 ```bash
-pip install -c dare2d-torch/_tf_env_constraints.txt "onnx==1.15.0" "onnxruntime==1.16.3"
+# ONNX export/runtime (see requirements-onnx.txt header for the --no-deps tf2onnx note)
+pip install -c dare2d-torch/_tf_env_constraints.txt -r dare2d-torch/requirements-onnx.txt
 pip install --no-deps "tf2onnx==1.16.1"
+# PyTorch GPU (the napari "pytorch" inference backend + retrain/torch_train.py)
+pip install -r dare2d-torch/requirements-pytorch.txt --index-url https://download.pytorch.org/whl/cu124
 ```
+→ `requirements-pytorch.txt` (`torch==2.6.0+cu124`, `torchvision==0.21.0+cu124`) and
+`requirements-onnx.txt` (`onnx==1.15.0`, `onnxruntime==1.16.3`) pin the exact versions.
 
 ### GPU env (inference + benchmark) — `dare2d-onnx`, Python 3.11, numpy 2
 ```bash

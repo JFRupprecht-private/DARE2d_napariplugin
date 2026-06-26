@@ -1,0 +1,12 @@
+# ONNX export + CPU runtime (Piste 1: the TF -> ONNX bridge / parity oracle), added to
+# the TF env. Install WITHOUT moving the numpy 1.23.5 / protobuf 4.25.9 pins, using the
+# constraints file:
+#   pip install -c dare2d-torch/_tf_env_constraints.txt -r dare2d-torch/requirements-onnx.txt
+#   pip install --no-deps tf2onnx==1.16.1    # its protobuf<4 pin would downgrade & break TF 2.12
+#
+# GPU inference (onnxruntime-gpu + CUDA 12 wheels + benchmark) lives in a SEPARATE env
+# (dare2d-onnx); see dare2d-torch/README.md for that recipe.
+
+onnx==1.15.0
+onnxruntime==1.16.3
+# tf2onnx==1.16.1   -> install separately with --no-deps (see header)
