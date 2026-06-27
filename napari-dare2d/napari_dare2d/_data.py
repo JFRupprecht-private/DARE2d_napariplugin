@@ -60,7 +60,9 @@ def download_dataset(root, progress_cb=None, log=print) -> Path:
 
     Checkpoints -> ``models/best/{regression,segmentation}_checkpoints``; the
     neuroepithelium dataset -> ``data/neuroepithelium/``. Zips are cached under
-    ``root/_zenodo_cache`` and reused if already present at the right size.
+    ``root/_zenodo_cache`` and reused if already present at the right size. Extraction
+    only ADDS missing files -- existing files are never overwritten, so a populated
+    ``models/`` (e.g. retrained checkpoints) is left intact.
     """
     root = Path(root)
     cache = root / "_zenodo_cache"
@@ -81,8 +83,11 @@ def download_dataset(root, progress_cb=None, log=print) -> Path:
         log(f"extracting {f['key']} → {sub.as_posix()}…")
         with zipfile.ZipFile(zpath) as z:
             for m in z.namelist():
-                if not _is_junk(m):
-                    z.extract(m, dest)
+                # skip junk and NEVER overwrite existing files: the download only fills in
+                # what's missing, so it never erases or clobbers models/ (or anything else).
+                if _is_junk(m) or (dest / m).exists():
+                    continue
+                z.extract(m, dest)
     log(f"done → {root}")
     return root
 

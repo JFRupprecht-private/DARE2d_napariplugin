@@ -71,6 +71,12 @@ def _dataset_present():
     return any(_api.DATA_DIR.glob("set_*"))
 
 
+def _data_complete():
+    """True only when BOTH the checkpoints and the dataset are present (the full Zenodo
+    download). Both widgets show their 'Download data' button until this holds."""
+    return _checkpoints_present() and _dataset_present()
+
+
 def _add_download_section(widget, present_fn):
     """Append a 'Download DARE2D data' button (+ progress bar) that shows only when the
     data ``present_fn`` checks for is missing. Clicking downloads from Zenodo with a live
@@ -83,8 +89,8 @@ def _add_download_section(widget, present_fn):
     bar.min, bar.max = 0, 100
     bar.visible = False
     btn.visible = not present_fn()
-    widget.append(btn)
-    widget.append(bar)
+    widget.insert(0, btn)   # top of the widget, above the inputs
+    widget.insert(1, bar)
 
     def _on_click():
         from qtpy.QtCore import QTimer
@@ -178,8 +184,9 @@ def _add_save_section(widget):
 
 
 def _division_widget_init(widget):
-    """Download-data button (when checkpoints missing) + hidden save-results section; tooltips."""
-    _add_download_section(widget, _checkpoints_present)
+    """Download-data button (when the full Zenodo data is incomplete) + hidden save-results
+    section; tooltips."""
+    _add_download_section(widget, _data_complete)
     _add_save_section(widget)
     cb = getattr(widget, "_call_button", None)
     if cb is not None:
@@ -377,9 +384,9 @@ def _win_to_wsl(p):
 
 
 def _retrain_widget_init(widget):
-    """Add a 'Download data' button (when the dataset is missing) and a 'Stop retraining'
-    button (shown only while a run is active)."""
-    _add_download_section(widget, _dataset_present)
+    """Add a 'Download data' button (when the full Zenodo data is incomplete) and a 'Stop
+    retraining' button (shown only while a run is active)."""
+    _add_download_section(widget, _data_complete)
     stop = PushButton(text="Stop retraining")
     stop.visible = False
     stop.tooltip = "Cancel the running retraining (terminates the training subprocess)."

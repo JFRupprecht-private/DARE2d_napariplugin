@@ -22,6 +22,12 @@ Robust detection uses an **8-model ensemble + consensus**. This repository conta
 faster **PyTorch** version, together with a **napari plugin** (`napari_dare2d`) that runs it
 interactively.
 
+> **Citation.** If you use DARE2D, please cite the preprint:
+> Karpinski R., Gros A., Karnat M., Saaheelur Rahaman Q., Vanaret J., Saadaoui M., Tlili S. L.,
+> Rupprecht J.-F. (2026). *DARE: Division Axis and Region Estimation from 2D and 3D Time-Lapse
+> Images.* bioRxiv. https://doi.org/10.1101/2024.02.05.578987
+
+
 ### Inference backends (CPU & GPU)
 
 Inference runs with either of two interchangeable backends, chosen in the napari widget's
@@ -31,11 +37,6 @@ Inference runs with either of two interchangeable backends, chosen in the napari
 |---|---|---|
 | **`keras`** (default) | TensorFlow / Keras | The original models; the only path on native-Windows TF (TF ≥2.11 has no Windows GPU support). |
 | **`pytorch`** | faithful PyTorch port (`dare2d-torch/`) | Produces the **same detections** as Keras — verified on set 8 (0 px centre shift, Δangle = Δlength = 0; parity ~1e-7). Loads `.pt` weights generated once via `dare2d-torch/convert_to_torch.py`. |
-
-> **Citation.** If you use DARE2D, please cite the preprint:
-> Karpinski R., Gros A., Karnat M., Saaheelur Rahaman Q., Vanaret J., Saadaoui M., Tlili S. L.,
-> Rupprecht J.-F. (2026). *DARE: Division Axis and Region Estimation from 2D and 3D Time-Lapse
-> Images.* bioRxiv. https://doi.org/10.1101/2024.02.05.578987
 
 ## Repository contents
 
