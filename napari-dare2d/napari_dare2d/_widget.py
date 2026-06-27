@@ -228,7 +228,7 @@ def dare2d_widget(
     backend: str = "keras",
     reg_dir: Path = _api.DEFAULT_REG_DIR,
     seg_dir: Path = _api.DEFAULT_SEG_DIR,
-    model_sets: str = "1-7",
+    model_sets: str = "8",
     frame_start: int = 0,
     frame_end: int = -1,
     eps: float = 10.0,
