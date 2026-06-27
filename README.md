@@ -27,10 +27,10 @@ interactively.
 Inference runs with either of two interchangeable backends, chosen in the napari widget's
 **Inference backend** dropdown:
 
-| Backend | Framework | Device | Notes |
-|---|---|---|---|
-| **`keras`** (default) | TensorFlow / Keras | **CPU** | The original models; the only path on native-Windows TF (TF ≥2.11 has no Windows GPU support). |
-| **`pytorch`** | faithful PyTorch port (`dare2d-torch/`) | **GPU (CUDA)** | Produces the **same detections** as Keras — verified on set 8 (0 px centre shift, Δangle = Δlength = 0; parity ~1e-7). Loads `.pt` weights generated once via `dare2d-torch/convert_to_torch.py`. |
+| Backend | Framework | Notes |
+|---|---|---|
+| **`keras`** (default) | TensorFlow / Keras | The original models; the only path on native-Windows TF (TF ≥2.11 has no Windows GPU support). |
+| **`pytorch`** | faithful PyTorch port (`dare2d-torch/`) | Produces the **same detections** as Keras — verified on set 8 (0 px centre shift, Δangle = Δlength = 0; parity ~1e-7). Loads `.pt` weights generated once via `dare2d-torch/convert_to_torch.py`. |
 
 > **Citation.** If you use DARE2D, please cite the preprint:
 > Karpinski R., Gros A., Karnat M., Saaheelur Rahaman Q., Vanaret J., Saadaoui M., Tlili S. L.,
