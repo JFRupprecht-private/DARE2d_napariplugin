@@ -18,10 +18,9 @@
 1. **Segmentation (center detection)** — a U-Net that localises division centers.
 2. **Regression** — estimates the division-axis orientation and length.
 
-Robust detection uses an **8-model ensemble + consensus**. This repository contains **both** the
-core framework (TensorFlow/Keras + Hydra) **and** the **napari plugin** (`napari_dare2d`) that
-runs it interactively, plus a **PyTorch GPU** inference backend and the **leave-one-out
-retraining** drivers.
+Robust detection uses an **8-model ensemble + consensus**. This repository contains both our initial TensorFlow/Keras framework as well as an updated,
+faster **PyTorch** version, together with a **napari plugin** (`napari_dare2d`) that runs it
+interactively.
 
 ### Inference backends (CPU & GPU)
 
@@ -141,7 +140,7 @@ Vectors layer (axes). Then **DARE2D save results** exports them to disk — per-
 
 Train on a subset of sets and test on the complement, producing
 `checkpoints_set_{n}_all_but_target/best.h5` — the exact layout inference consumes. Retraining can
-be run **two ways**:
+be run **three ways**:
 
 **1. Terminal (CLI).** Run the leave-one-out driver for each stage:
 ```bash
@@ -152,9 +151,16 @@ python -m scripts.batch_train.batch_train_eval experiment=segmentation2d batch_t
 **2. Notebook.** Open `Run_dare2d_Retraining.ipynb` — it preprocesses each raw set into the
 per-frame layout the generators read, then runs the same leave-one-out training for both stages.
 
-GPU training options (native-Windows TF is CPU-only) live in `retrain/`: a WSL2 TF-GPU path and a
-native-Windows PyTorch-GPU backend (`retrain/torch_train.py`). The napari plugin also exposes a
-retraining widget that wraps these.
+**3. napari plugin.** Launch `napari`, then **Plugins → DARE2D retraining**. Pick the **Test set**
+(held out), optional **Train sets** (blank = the rest), **Model** (both / regression / segmentation)
+and **Backend** (PyTorch GPU, TensorFlow CPU, or TensorFlow WSL GPU), then **Start retraining** — a
+progress bar tracks the epochs and an inline **Stop retraining** button cancels it. Output lands in
+`models/<run>/…` (dated; `models/best/` is never overwritten). If the dataset isn't present yet, a
+**Download data** button appears in the widget first.
+
+The backends live in `retrain/` (native-Windows TF is CPU-only): a WSL2 TF-GPU path and a
+native-Windows PyTorch-GPU backend (`retrain/torch_train.py`), wrapped by both the notebook and the
+napari widget above.
 
 ## Checks
 
