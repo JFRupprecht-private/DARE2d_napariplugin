@@ -84,7 +84,7 @@ __all__ = [
     "to_layer_data",
     "annotation_pairs",
     "annotations_to_layer_data",
-    "movie_to_layer_data",
+    "read_stack",
     "find_checkpoints",
     "parse_sets",
     "resolve_frames",
@@ -458,10 +458,11 @@ def to_layer_data(per_frame, frame_base=0, name="DARE2D", point_size=24,
 # ---------------------------------------------------------------------------
 # Ground-truth annotations: paired daughter cells per frame
 # ---------------------------------------------------------------------------
-# set_8/division_position{n}.npy holds an int (2K, 3) array of [x, y, frame] rows
-# where CONSECUTIVE rows are paired: row 2k and 2k+1 are the two daughter cells of
-# one division. ``frame`` is 1-based (file n -> frame label n), so napari t =
-# frame - frame_base (frame_base=1, same convention as consensus keys). x=col, y=row.
+# division_position{n}.npy holds an int (2K, 3) array of [row, col, frame] rows
+# (i.e. [y, x, frame] -- the order the training pipeline reads; see
+# annotator/preprocessing/format_gastru.py), where CONSECUTIVE rows are paired: row 2k and
+# 2k+1 are the two daughter cells of one division. ``frame`` is 1-based (file n -> frame
+# label n), so napari t = frame - frame_base (frame_base=1, same convention as consensus).
 
 def _annot_file_num(p):
     digits = "".join(ch for ch in Path(p).stem if ch.isdigit())
@@ -469,51 +470,31 @@ def _annot_file_num(p):
 
 
 def annotation_pairs(rows, frame_base=1):
-    """``(2K, 3)`` ``[x, y, frame]`` rows -> list of ``((t,yA,xA), (t,yB,xB))`` pairs.
+    """``(2K, 3)`` ``[row, col, frame]`` rows -> list of ``((t,yA,xA), (t,yB,xB))`` pairs.
 
-    Pairs consecutive rows (the two daughter cells). A trailing unpaired row is
-    ignored. Pure / no napari, so it's unit-testable without files.
+    The GT stores ``[row, col, frame]`` (``[y, x, frame]`` -- the order the training pipeline
+    reads, see annotator/preprocessing/format_gastru.py), so the napari point is
+    ``(t, row, col)``. Pairs consecutive rows (the two daughter cells); a trailing unpaired
+    row is ignored. Pure / no napari, so it's unit-testable without files.
     """
     rows = np.atleast_2d(np.asarray(rows))
     out = []
     for k in range(0, len(rows) - 1, 2):
-        xa, ya, fa = rows[k][:3]
-        xb, yb, _ = rows[k + 1][:3]
+        ya, xa, fa = rows[k][:3]        # GT row = [row(y), col(x), frame]
+        yb, xb, _ = rows[k + 1][:3]
         t = int(fa) - frame_base
         out.append(((t, float(ya), float(xa)), (t, float(yb), float(xb))))
     return out
 
 
-def _find_set_movie(folder):
-    """The set's movie tiff sits next to the division_position*.npy: pick the lone
-    .tif/.tiff, skipping derived overlays (*_result.tiff / *_raw.tiff)."""
-    cands = sorted(p for p in Path(folder).glob("*.tif*")
-                   if not p.stem.endswith(("_result", "_raw")))
-    return cands[0] if cands else None
-
-
-def _read_stack(path):
-    """Read a (T, Y, X) tiff stack (tifffile, falling back to skimage.io)."""
+def read_stack(path):
+    """Read a ``(T, Y, X)`` image stack from a .tif/.tiff (tifffile, falling back to skimage.io)."""
     try:
         import tifffile
         return tifffile.imread(str(path))
     except Exception:
         from skimage import io as skio
         return skio.imread(str(path))
-
-
-def movie_to_layer_data(folder=DEFAULT_ANNOT_DIR):
-    """Load the set folder's movie ``.tif`` as a single napari Image ``LayerDataTuple``.
-
-    Finds the lone movie tiff next to the ``division_position*.npy`` (skipping derived
-    ``*_result``/``*_raw`` overlays) and returns ``[(stack, meta, "image")]`` -- a
-    plain Image layer, NO ground truth. Raises FileNotFoundError if the folder has no
-    ``.tif``/``.tiff``.
-    """
-    movie = _find_set_movie(Path(folder))
-    if movie is None:
-        raise FileNotFoundError(f"no movie .tif/.tiff in {folder}")
-    return [(_read_stack(movie), {"name": movie.stem}, "image")]
 
 
 def annotations_to_layer_data(folder=DEFAULT_ANNOT_DIR, name="annotations",

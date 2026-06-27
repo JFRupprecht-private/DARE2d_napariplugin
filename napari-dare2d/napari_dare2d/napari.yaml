@@ -8,33 +8,13 @@ contributions:
     - id: napari-dare2d.annotations_widget
       title: DARE2D annotations viewer
       python_name: napari_dare2d._widget:annotations_widget
-    - id: napari-dare2d.load_movie_widget
-      title: DARE2D load movie
-      python_name: napari_dare2d._widget:load_movie_widget
     - id: napari-dare2d.retrain_widget
       title: DARE2D retraining
       python_name: napari_dare2d._widget:retrain_widget
-    - id: napari-dare2d.retrain_stop_widget
-      title: DARE2D retraining (stop)
-      python_name: napari_dare2d._widget:retrain_stop_widget
-    - id: napari-dare2d.download_widget
-      title: DARE2D download data
-      python_name: napari_dare2d._widget:dare2d_download_widget
-    - id: napari-dare2d.save_results_widget
-      title: DARE2D save results
-      python_name: napari_dare2d._widget:save_results_widget
   widgets:
     - command: napari-dare2d.make_widget
       display_name: DARE2D division detection
     - command: napari-dare2d.annotations_widget
       display_name: DARE2D annotations viewer
-    - command: napari-dare2d.load_movie_widget
-      display_name: DARE2D load movie
     - command: napari-dare2d.retrain_widget
       display_name: DARE2D retraining
-    - command: napari-dare2d.retrain_stop_widget
-      display_name: DARE2D retraining (stop)
-    - command: napari-dare2d.download_widget
-      display_name: DARE2D download data
-    - command: napari-dare2d.save_results_widget
-      display_name: DARE2D save results

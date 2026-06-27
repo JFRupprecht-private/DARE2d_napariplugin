@@ -75,13 +75,13 @@ def main():
     check(epts.shape == (0, 3) and evecs.shape == (0, 2, 3), "empty -> (0,3) / (0,2,3)")
 
     print("== annotation pairs (paired daughter cells) ==")
-    # rows are [x, y, frame], consecutive rows paired; frame 3 (1-based) -> t=2
+    # rows are [row, col, frame], consecutive rows paired; frame 3 (1-based) -> t=2
     rows = np.array([[100, 200, 3], [110, 210, 3], [5, 6, 3], [7, 8, 3]])
     prs = api.annotation_pairs(rows)
     check(len(prs) == 2, f"2 pairs from 4 rows: {len(prs)}")
     cellA, cellB = prs[0]
-    check(cellA == (2, 200.0, 100.0), f"cellA == (t,y,x)=(2,200,100): {cellA}")
-    check(cellB == (2, 210.0, 110.0), f"cellB == (t,y,x)=(2,210,110): {cellB}")
+    check(cellA == (2, 100.0, 200.0), f"cellA == (t,y,x)=(2,100,200): {cellA}")
+    check(cellB == (2, 110.0, 210.0), f"cellB == (t,y,x)=(2,110,210): {cellB}")
     check(api.annotation_pairs(np.array([[1, 2, 1]])) == [], "single unpaired row -> no pair")
 
     print("== napari 0.4.18 accepts the LayerDataTuples (headless) ==")
