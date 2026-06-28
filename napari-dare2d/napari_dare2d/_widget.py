@@ -140,12 +140,26 @@ def _add_download_section(widget, present_fn):
 _DIV = {}  # holds the division widget's 'save results' controls (revealed after a run)
 
 
+def _default_out_dir():
+    """A fresh, date-stamped run folder under output/ so each run's results land in their own
+    directory: ``output/dare2d_<YYYY-MM-DD>`` (a numeric suffix is added if it already exists)."""
+    base = _api.PROJECT_ROOT / "output"
+    stamp = datetime.date.today().isoformat()
+    cand = base / f"dare2d_{stamp}"
+    n = 2
+    while cand.exists():
+        cand = base / f"dare2d_{stamp}_{n}"
+        n += 1
+    return cand
+
+
 def _add_save_section(widget):
     """Append a hidden 'save results' section to the division widget; ``_on_return`` reveals
     it once a detection run finishes (replaces the old standalone save-results widget)."""
-    out = FileEdit(mode="d", label="Output folder", value=_api.PROJECT_ROOT / "output")
+    out = FileEdit(mode="d", label="Output folder", value=_default_out_dir())
     out.tooltip = ("Folder to write per-frame division_position*.npy, a *_summary.csv and "
-                   "(optionally) an overlay *_result.tiff into.")
+                   "(optionally) an overlay *_result.tiff into. Defaults to a fresh date-stamped "
+                   "run folder under output/ (refreshed each run).")
     overlay = CheckBox(value=True, label="Also save overlay movie (.tiff)")
     overlay.tooltip = "Render a (T, Y, X) RGB overlay tiff with the detections drawn on the movie."
     btn = PushButton(text="Save DARE2D results")
@@ -153,6 +167,7 @@ def _add_save_section(widget):
     for w_ in (out, overlay, btn):
         w_.visible = False
         widget.append(w_)
+    _DIV["out"] = out
 
     def _save():
         import napari.layers as nl
@@ -320,6 +335,9 @@ def dare2d_widget(
     def _on_return(layer_data):
         for data, meta, ltype in layer_data:
             viewer._add_layer_from_data(data, meta, ltype)
+        out_w = _DIV.get("out")                    # propose a fresh date-stamped run folder
+        if out_w is not None:
+            out_w.value = _default_out_dir()
         for w_ in _DIV.get("save_widgets", ()):   # reveal the save-results section
             w_.visible = True
 
