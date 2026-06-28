@@ -109,6 +109,18 @@ def evaluate(model, loader, kind, device, max_batches=None):
     return tot / max(n, 1)
 
 
+def _fmt_eta(seconds: float) -> str:
+    """Human-readable ETA, e.g. '1h04m', '12m30s', '45s'."""
+    s = int(max(0, seconds))
+    h, rem = divmod(s, 3600)
+    m, sec = divmod(rem, 60)
+    if h:
+        return f"{h}h{m:02d}m"
+    if m:
+        return f"{m}m{sec:02d}s"
+    return f"{sec}s"
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--experiment", choices=list(_EXP), required=True)
@@ -143,11 +155,12 @@ def main():
           f"device={device}\n[torch-train] -> {ckpt_path}")
 
     # 1) preprocess (cached)
+    print("[phase] preprocessing data (first run only; can take a few minutes)…", flush=True)
     raw_root = Path(args.raw_root)
     prepared_root = PROJECT_ROOT / "data" / "prepared" / f"crop_{args.crop}"
     for name in train_sets + [test_set]:
         _, n = prep.prepare_set(raw_root / name, prepared_root / name, crop_size=args.crop)
-        print(f"[prep] {name}: {n} samples")
+        print(f"[prep] {name}: {n} samples", flush=True)
 
     # 2) build DARE2D generators (reuse train_split wiring) + augmentations
     cfg = ts.build_config(args.experiment, bt_name, prepared_root, out_dir,
@@ -179,10 +192,14 @@ def main():
         raise FileExistsError(f"refusing to overwrite {ckpt_path}")
     best = float("inf")
     it = _cycle(train_loader)
+    total_steps = args.epochs * args.steps
+    train_t0 = time.time()
+    last_log = 0.0
+    print(f"[phase] training: {args.epochs} epochs x {args.steps} steps on {device}", flush=True)
     for ep in range(args.epochs):
         t0 = time.time()
         run = 0.0
-        for _ in range(args.steps):
+        for si in range(args.steps):
             x, y = next(it)
             x = x.to(device)
             opt.zero_grad()
@@ -195,6 +212,17 @@ def main():
             loss.backward()
             opt.step()
             run += float(loss)
+            # throttled heartbeat so the widget bar + terminal advance WITHIN an epoch
+            now = time.time()
+            if now - last_log >= 2.0:
+                done = ep * args.steps + si + 1
+                el = now - train_t0
+                rate = done / el if el > 0 else 0.0
+                eta = (total_steps - done) / rate if rate > 0 else 0.0
+                print(f"[step] {ep+1}/{args.epochs} {si+1}/{args.steps} "
+                      f"{100.0 * done / total_steps:.0f}% {rate:.1f} it/s "
+                      f"eta {_fmt_eta(eta)} (this stage)", flush=True)
+                last_log = now
         val = evaluate(model, val_loader, kind, device, max_batches=50)
         improved = val < best
         if improved:
@@ -202,7 +230,7 @@ def main():
             torch.save(model.state_dict(), ckpt_path)
         print(f"[epoch {ep+1}/{args.epochs}] train_loss={run/args.steps:.4f} "
               f"val_loss={val:.4f}{'  *saved' if improved else ''} "
-              f"({time.time()-t0:.1f}s)")
+              f"({time.time()-t0:.1f}s)", flush=True)
 
     print(f"[torch-train] DONE. best val_loss={best:.4f}  checkpoint: {ckpt_path}")
 

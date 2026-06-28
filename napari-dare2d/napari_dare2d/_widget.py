@@ -17,6 +17,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from collections import defaultdict
 from pathlib import Path
 
@@ -498,8 +499,19 @@ def annotations_widget(
 _TRAIN_DIR = _api.PROJECT_ROOT / "training"
 _RUN = {"proc": None, "cancel": False}            # proc + cancel flag + the inline Stop button
 _EPOCH_RE = re.compile(r"(?:\[epoch |Epoch )(\d+)/(\d+)")
+_STEP_RE = re.compile(r"\[step\] (\d+)/(\d+) (\d+)/(\d+)")   # epoch/epochs step/steps
+_PHASE_RE = re.compile(r"\[phase\] (.+)")
+_PREP_RE = re.compile(r"\[prep\] (\S+):")
 _EXP_MAP = {"both": ["regression2d", "segmentation2d"],
             "regression": ["regression2d"], "segmentation": ["segmentation2d"]}
+
+
+def _fmt_eta(seconds):
+    """Human-readable ETA: '1h04m' / '12m30s' / '45s'."""
+    s = int(max(0, seconds))
+    h, rem = divmod(s, 3600)
+    m, sec = divmod(rem, 60)
+    return f"{h}h{m:02d}m" if h else (f"{m}m{sec:02d}s" if m else f"{sec}s")
 
 
 def _win_to_wsl(p):
@@ -606,9 +618,13 @@ def retrain_widget(
 
     @thread_worker
     def run():
-        for exp in exps:
+        n_stages = max(1, len(exps))
+        t0 = time.time()
+        anchor = {}            # ETA anchor: (elapsed, fraction) at first training progress
+        for si, exp in enumerate(exps):
             if _RUN["cancel"]:
                 break
+            stage = exp.replace("2d", "")
             # decode as UTF-8 w/ replacement: training output has non-cp1252 bytes
             # (progress bars / warnings) that the Windows default codec rejects.
             proc = subprocess.Popen(_cmd(exp), stdout=subprocess.PIPE,
@@ -617,12 +633,40 @@ def retrain_widget(
                                     env=env, cwd=str(_api.PROJECT_ROOT))
             _RUN["proc"] = proc
             for line in proc.stdout:
-                m = _EPOCH_RE.search(line)
-                if m:
-                    yield (exp, int(m.group(1)), int(m.group(2)))
                 if _RUN["cancel"]:
                     proc.terminate()
                     break
+                # startup / preprocessing -> an indeterminate "busy" bar with a live label
+                mph = _PHASE_RE.search(line)
+                if mph:
+                    yield ("busy", f"{stage}: {mph.group(1).strip()}")
+                    continue
+                mpr = _PREP_RE.search(line)
+                if mpr:
+                    yield ("busy", f"{stage}: preprocessing {mpr.group(1)}…")
+                    continue
+                # within-stage fraction from a step heartbeat, else from an epoch line
+                within = ep = tot = None
+                ms = _STEP_RE.search(line)
+                if ms:
+                    ep, tot, k, kn = (int(g) for g in ms.groups())
+                    within = ((ep - 1) * kn + k) / (tot * kn)
+                else:
+                    me = _EPOCH_RE.search(line)
+                    if me:
+                        ep, tot = int(me.group(1)), int(me.group(2))
+                        within = ep / tot
+                if within is not None:
+                    overall = (si + within) / n_stages            # 0..1 across all stages
+                    el = time.time() - t0
+                    anchor.setdefault("el", el)
+                    anchor.setdefault("f", overall)
+                    df, dt = overall - anchor["f"], el - anchor["el"]
+                    eta = (1 - overall) * dt / df if df > 1e-9 else 0.0
+                    lbl = f"{int(100 * overall)}%  {stage} ep {ep}/{tot}"
+                    if eta > 0:
+                        lbl += f"  eta {_fmt_eta(eta)}"
+                    yield ("pct", overall, lbl)
             rc = proc.wait()
             if _RUN["cancel"]:
                 break
@@ -631,13 +675,20 @@ def retrain_widget(
         return rn
 
     def _on_yield(v):
-        exp, ep, tot = v
-        pbar.max = tot
-        pbar.value = ep
-        pbar.label = f"{exp} epoch {ep}/{tot}"
+        if v[0] == "busy":                      # indeterminate (animated) bar
+            pbar.max = 0
+            pbar.label = v[1]
+        else:                                   # ("pct", fraction, label)
+            pbar.max = 100
+            pbar.value = int(100 * v[1])
+            pbar.label = v[2]
 
     def _done(_=None):
-        pbar.label = "cancelled" if _RUN["cancel"] else f"done -> models/{rn}"
+        if _RUN["cancel"]:
+            pbar.label = "cancelled"
+        else:
+            pbar.max, pbar.value = 100, 100
+            pbar.label = f"done -> models/{rn}"
         _RUN["proc"] = None
 
     _stop_btn = _RUN.get("stop_btn")
@@ -651,7 +702,10 @@ def retrain_widget(
     worker.returned.connect(_done)
     worker.errored.connect(lambda e: (setattr(pbar, "label", f"error: {e}"),
                                       _RUN.__setitem__("proc", None)))
-    worker.started.connect(lambda: (setattr(pbar, "visible", True), _set_stop(True)))
+    worker.started.connect(lambda: (setattr(pbar, "visible", True),
+                                     setattr(pbar, "max", 0),
+                                     setattr(pbar, "label", "starting… (importing backend)"),
+                                     _set_stop(True)))
     worker.finished.connect(lambda: _set_stop(False))
     worker.start()
     return worker
