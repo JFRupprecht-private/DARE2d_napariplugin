@@ -41,16 +41,25 @@ Inference runs with either of two interchangeable backends, chosen in the napari
 ## Repository contents
 
 ```
-dare2d/                       # core package: datamodule, models, losses, evaluation, prediction
-config/                       # Hydra configuration tree (train, batch_training, experiment, ...)
-scripts/                      # CLIs: inference, batch_train (leave-one-out), postprocessing, train
+dare2d/                       # core TF/Keras package (pip install -e .)
+├── datamodule/               #   data loading, generators, augmentation
+├── model/                    #   network architectures (U-Net seg + regression head)
+├── losses/   evaluation/     #   loss functions; centre / angle / length metrics
+├── prediction/ callbacks/    #   inference utilities; training callbacks
+├── trainer/                  #   training-loop utilities
+└── io.py     typing.py       #   I/O helpers; type definitions
+config/                       # Hydra config tree (train.yaml + model/ datamodule/ experiment/ batch_training/ trainer/ …)
+scripts/                      # CLIs: all_model_inference.py, inference/, postprocessing/, batch_train/ (leave-one-out), train/, tools/
 annotator/                    # preprocessing (format_gastru) + annotation utilities
 napari-dare2d/                # the napari plugin (in-process inference + retraining widgets)
 dare2d-torch/                 # PyTorch GPU port of both models (inference) + ONNX export
 training/                     # leave-one-out retraining: tf/ (CPU + WSL-GPU) + torch/ (GPU) + shared prepare.py
-main2d.ipynb                  # inference notebook (ensemble + consensus)
+models/                       # checkpoints (git-ignored): best/ = curated 8-set ensemble; <run>/ = retraining outputs
+data/                         # datasets (git-ignored): neuroepithelium/ raw sets + prepared/ generator cache
+input/  output/               # CLI inference inputs (you populate) / outputs (git-ignored)
+Run_dare2d_Prediction.ipynb   # inference notebook (ensemble + consensus)
 Run_dare2d_Retraining.ipynb   # retraining notebook (preprocess -> leave-one-out -> checkpoints)
-notebooks/                    # data analysis / training-data display
+notebooks/                    # extra notebooks: Division_detection, data_analysis, train_data_display
 ```
 
 > **`dare2d/` vs `dare2d-torch/`.** `dare2d/` is the importable, `pip install -e .` **package**
@@ -106,18 +115,38 @@ pip install --no-build-isolation --no-deps -e ./napari-dare2d
 Published on **Zenodo** ([record 17442227](https://zenodo.org/records/17442227)):
 `regression_checkpoints.zip`, `segmentation_checkpoints.zip`, `neuroepithelium.zip`, and
 `torch_weights.zip` (pre-converted `best.pt` for the GPU/`pytorch` backend, unzipped next to
-each `best.h5`). Unzip at the repository root into this layout (kept local, not in git):
+each `best.h5`). The napari plugin reads checkpoints from `models/best/` and the dataset from
+`data/` (kept local, not in git):
 
 ```
-regression_checkpoints/checkpoints_set_{1..8}_all_but_target/best.h5
-segmentation_checkpoints/checkpoints_set_{1..8}_all_but_target/best.h5
+models/best/regression_checkpoints/checkpoints_set_{1..8}_all_but_target/best.h5   (+ best.pt)
+models/best/segmentation_checkpoints/checkpoints_set_{1..8}_all_but_target/best.h5   (+ best.pt)
 data/neuroepithelium/neuroepithelium/set_{1..8}/     # movie .tiff + division_position*.npy
 ```
 
-Or click **DARE2D download data** in the plugin (Plugins → DARE2D) to fetch and place all of the
-above automatically.
+The easiest route is to click **DARE2D download data** in the plugin (Plugins → DARE2D), which
+fetches all of the above and places it in exactly this layout. (The command-line ensemble in
+`scripts/all_model_inference.py` instead reads `regression_checkpoints/` /
+`segmentation_checkpoints/` under its `BASE_DIR`; unzip a copy there for CLI use.)
 
-Input images must be **8-bit** grayscale `(T, Y, X)` `.tif` stacks.
+## Data format
+
+**Input.** 8-bit grayscale `.tif`/`.tiff` stacks shaped `(T, Y, X)` (time, height, width). The
+in-process API and napari plugin require **8-bit** (they histogram-equalise each frame); the
+command-line ensemble reads `.tif` stacks placed in `input/`.
+
+**Ground truth / annotations.** Per-frame `division_position{n}.npy` arrays whose rows are
+`[row, col, frame]`, with consecutive rows the two daughter cells of one division (`frame` is
+1-based). These ship in each `data/.../set_N/` and are what retraining and the **Load annotations**
+widget read.
+
+**Output.** Detections are written as:
+- **napari plugin** (*DARE2D save results*) → one run folder (default `output/dare2d_<date>/`):
+  per-frame `division_position*.npy` (`[x, y]` pairs), a `*_summary.csv` (frame, x, y, angle,
+  length, …) and an overlay `*_result.tiff` movie.
+- **CLI ensemble** (`scripts/all_model_inference.py`) → `output/{image}_{set}/…` per model set;
+  `scripts/postprocessing/main.py` then aggregates them into consensus detections under your
+  chosen `--save_dir` (a `*_summary.csv`, the consensus `.npy`s and a rendered `.tiff`).
 
 ## Inference
 
@@ -130,15 +159,45 @@ python scripts/all_model_inference.py
 python -m scripts.inference.multistage_detection2d --regression ... --segmentation ... --img ... --output ...
 ```
 
-**2. Notebook.** Open `main2d.ipynb` — discovers `.tif` inputs, runs the ensemble, generates
-consensus detections, and plots them.
+**2. Notebook.** Open `Run_dare2d_Prediction.ipynb` — discovers `.tif` inputs, runs the ensemble,
+generates consensus detections, and plots them.
 
 **3. napari plugin.** Launch `napari`, then **Plugins → DARE2D division detection**. Load a `.tif`
-stack, choose the **Inference backend** (`keras`/CPU or `pytorch`/GPU), point the **Regression /
-Segmentation checkpoint** fields at `regression_checkpoints/` and `segmentation_checkpoints/`, set
-the model sets / frame range, and **Run** — results appear as a Points layer (centers) and a
+stack, choose the **Inference backend** (`keras`/CPU or `pytorch`/GPU); the **Regression /
+Segmentation checkpoint** fields default to `models/best/…` (or point them at a retrained run dir),
+set the model sets / frame range, and **Run** — results appear as a Points layer (centers) and a
 Vectors layer (axes). Then **DARE2D save results** exports them to disk — per-frame
 `division_position*.npy`, a `*_summary.csv`, and an overlay `*_result.tiff` movie.
+
+## Postprocessing & consensus
+
+A single model set gives raw per-frame detections; the **8-model ensemble** is made robust by a
+consensus step — run automatically by the notebook and the napari plugin, and available as a
+standalone CLI:
+
+1. **Spatial clustering** — detections are grouped by proximity with HDBSCAN (DBSCAN fallback if
+   `hdbscan` isn't installed), the radius scaled to cell size, so detections of the same cell merge.
+2. **Temporal de-duplication** — within a cluster, repeats across neighbouring frames are collapsed
+   so a cell isn't counted several times.
+3. **Consensus** — median position, angle and axis length per cluster, plus uncertainty
+   (`angle_std_deg`, `length_std`, `pos_std`) and the number of agreeing models.
+
+**Parameters** (same names in the API, notebook and CLI):
+
+| Parameter | Meaning | Default |
+|---|---|---|
+| `eps` | spatial clustering radius (px), ≈ cell size | `10` |
+| `min_models` | models that must agree to keep a cluster | `6` |
+| `num_models` | models in the ensemble | `8` |
+| `angle_mode` | angle-unit handling (`auto` / `degrees` / `radians`) | `auto` |
+
+**Standalone CLI** (the notebook/plugin do this for you):
+```bash
+python scripts/postprocessing/main.py \
+  --output_root output --image_name my_movie.tif \
+  --image_stack input/my_movie.tif --save_dir output/my_movie_consensus \
+  --eps 10 --min_models 6 --num_models 8
+```
 
 ## Retraining (leave-one-out)
 
@@ -180,6 +239,38 @@ the notebook and the napari widget above.
 python napari-dare2d/verify_layers.py   # fast: geometry + napari mapping (no models)
 python napari-dare2d/verify_api.py      # real: builds set-8 models, runs inference (needs checkpoints)
 ```
+
+## Troubleshooting
+
+**Missing checkpoints / "checkpoint missing" errors.** Ensure all 8 sets are present with a
+`best.h5` (and `best.pt` for the `pytorch` backend) under the folders the tool expects: the napari
+plugin defaults to `models/best/{regression,segmentation}_checkpoints/` (the **Download data**
+button fills these), while `scripts/all_model_inference.py` reads `regression_checkpoints/` /
+`segmentation_checkpoints/` under its `BASE_DIR` — set that to your project root.
+
+**Import errors / `ModuleNotFoundError`.** Activate the env (`conda activate dare2d-napari`) and
+install both requirement files (`pip install -r requirements-tf.txt -r requirements-torch.txt`)
+plus the editable packages (`pip install -e .` and the plugin). There is no bare `requirements.txt`.
+
+**napari opens but the DARE2D widgets aren't listed / no Qt backend.** Install napari with a Qt
+backend explicitly (`pip install "napari[all]"`), then reinstall the plugin with
+`--no-deps --no-build-isolation` so the numpy pin isn't disturbed.
+
+**`pytorch` backend unavailable.** Torch isn't installed, or its CUDA build doesn't match your
+toolkit — install `requirements-torch.txt` (swap `cu124` for your CUDA version). The `.pt` weights
+must sit next to each `best.h5`; the Download button ships them.
+
+**Out-of-memory.** Lower the frame range, `crop` or `batch-size` (retraining), process fewer frames,
+or use the `keras`/CPU backend for very large images.
+
+**TF retraining won't use the GPU on Windows.** Expected — native-Windows TF 2.12 is CPU-only. Use
+the **PyTorch (GPU)** backend, or the **TensorFlow (WSL GPU)** backend under WSL2 (see the Windows /
+WSL note above).
+
+## Related projects
+
+- **DARE3D** — the 3D (volumetric) version of this framework:
+  [github.com/JFRupprecht-OM/DARE3d](https://github.com/JFRupprecht-OM/DARE3d)
 
 ## License & attribution
 
