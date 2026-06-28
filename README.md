@@ -163,6 +163,14 @@ The backends live in `retrain/` (native-Windows TF is CPU-only): a WSL2 TF-GPU p
 native-Windows PyTorch-GPU backend (`retrain/torch_train.py`), wrapped by both the notebook and the
 napari widget above.
 
+> **Windows / WSL note.** Native-Windows TensorFlow 2.12 is **CPU-only** (TF ≥2.11 has no
+> Windows GPU support), so on Windows **TF retraining runs on CPU**. Training TensorFlow **on
+> the GPU** is only possible through the **TensorFlow (WSL GPU)** backend, which **requires
+> WSL2** (with a CUDA-enabled `dare2d-train` env inside it) — without WSL2 that option will not
+> work. For native-Windows **GPU** training use the **PyTorch (GPU)** backend instead; the
+> **TensorFlow (CPU)** backend also needs no WSL. (Inference never needs WSL: `keras` runs on
+> CPU and `pytorch` on GPU.)
+
 ## Checks
 
 ```bash
