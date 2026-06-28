@@ -202,7 +202,8 @@ def _add_advanced_section(widget):
     """Group the fine-tuning controls under an 'Advanced parameters' toggle. magicgui has no
     native collapsible, so a PushButton flips the controls' .visible (collapsed by default;
     click to expand, click again to collapse)."""
-    advanced = (widget.seg_threshold, widget.eps, widget.min_models)
+    advanced = (widget.seg_threshold, widget.eps, widget.min_models,
+                widget.angle_mode, widget.min_cluster_size, widget.min_samples)
     toggle = PushButton(text="▸ Advanced parameters")
     toggle.tooltip = "Show/hide segmentation threshold and consensus tuning (eps, min models)."
     for w_ in advanced:
@@ -219,15 +220,48 @@ def _add_advanced_section(widget):
 
 
 def _division_widget_init(widget):
-    """Download-data button (when the full Zenodo data is incomplete) + hidden save-results
-    section + collapsible advanced parameters; tooltips."""
+    """Download-data button + hidden save-results section + collapsible advanced parameters;
+    show a picked movie immediately and pre-load the demo movie; tooltips."""
     _add_download_section(widget, _data_complete)
     _add_save_section(widget)
     _add_advanced_section(widget)
+
+    def _show_movie(path):
+        """Load the picked movie into the viewer and select it as the Run input, so choosing a
+        file shows it immediately (reusing an existing layer of the same name -- no duplicates)."""
+        viewer = napari.current_viewer()
+        if viewer is None or not path:
+            return
+        p = Path(path)
+        if not p.is_file():
+            return
+        import napari.layers as nl
+        layer = next((ly for ly in viewer.layers
+                      if isinstance(ly, nl.Image) and ly.name == p.stem), None)
+        if layer is None:
+            layer = viewer.add_image(_api.read_stack(p), name=p.stem)
+        try:
+            widget.image.value = layer      # use it as the Run input (movie shows regardless)
+        except Exception:
+            pass
+
+    widget.movie.changed.connect(_show_movie)
+    # Pre-load the demo movie shipped beside the set_N folders (found by extension, so a rename
+    # of that file is fine as long as it stays there). Setting .value fires _show_movie.
+    dm = _api.default_movie()
+    if dm is not None:
+        widget.movie.value = dm
+        # current_viewer() may not be ready during widget construction; defer one load to the
+        # next event-loop tick so the demo movie reliably appears (deduped by layer name).
+        from qtpy.QtCore import QTimer
+        QTimer.singleShot(0, lambda: _show_movie(widget.movie.value))
+
     cb = getattr(widget, "_call_button", None)
+    _DIV["call_button"] = cb                       # so the run can toggle Run <-> Stop
     if cb is not None:
         cb.tooltip = ("Detect divisions in the selected stack and overlay the centres "
-                      "(Points layer) and division axes (Vectors layer).")
+                      "(Points layer) and division axes (Vectors layer). While running, this "
+                      "button becomes Stop DARE2D to interrupt the run.")
 
 
 @magic_factory(
@@ -235,43 +269,57 @@ def _division_widget_init(widget):
     call_button="Run DARE2D",
     image={"label": "Image layer (already open)",
            "tooltip": "Run on an Image layer already open in napari. Leave empty if you "
-                      "load a movie file below instead."},
+                      "load a movie file below instead. Default: none (use the open layer)."},
     movie={"mode": "r", "label": "…or load a movie (.tif)",
-           "tooltip": "Browse for an 8-bit (T, Y, X) .tif/.tiff stack. It is loaded as an "
-                      "Image layer and used as the input when you press Run."},
-    backend={"choices": ["keras", "pytorch"], "label": "Inference backend",
-             "tooltip": "keras = TensorFlow on CPU (default). pytorch = GPU/CUDA — same "
-                        "detections, needs the .pt weights in the checkpoint folders."},
+           "tooltip": "Browse for an 8-bit (T, Y, X) .tif/.tiff stack; it loads and displays "
+                      "immediately and becomes the Run input. Default: the demo movie beside "
+                      "the set folders (auto-loaded if present)."},
+    backend={"choices": ["pytorch", "keras"], "label": "Inference backend",
+             "tooltip": "pytorch = GPU/CUDA (default; loads .pt weights). keras = TensorFlow "
+                        "on CPU (loads .h5) — same detections. Default: pytorch."},
     reg_dir={"label": "Regression checkpoints", "mode": "d",
              "tooltip": "Folder of regression checkpoints "
-                        "(…/checkpoints_set_N_all_but_target/best.h5 or best.pt). Point it "
-                        "at a retrained run dir to use those weights."},
+                        "(…/checkpoints_set_N_all_but_target/best.h5 or best.pt); point it at "
+                        "a retrained run dir to use those weights. "
+                        "Default: models/best/regression_checkpoints."},
     seg_dir={"label": "Segmentation checkpoints", "mode": "d",
-             "tooltip": "Folder of segmentation (centre-detection) checkpoints, same "
-                        "layout as the regression folder."},
+             "tooltip": "Folder of segmentation (centre-detection) checkpoints, same layout "
+                        "as the regression folder. Default: models/best/segmentation_checkpoints."},
     model_sets={"label": "Model sets (e.g. 1-7, or 8)",
-                "tooltip": "Which trained model set(s) to run: e.g. '8' for one model, "
-                           "'1-7' for the 7-model ensemble. Several sets → per-frame "
-                           "consensus across them."},
+                "tooltip": "Which trained model set(s) to run: e.g. '8' for one model, '1-7' "
+                           "for the 7-model ensemble. Several sets → per-frame consensus. "
+                           "Default: 8."},
     frame_start={"label": "First frame",
-                 "tooltip": "First frame to process (0-based)."},
+                 "tooltip": "First frame to process (0-based). Default: 0."},
     frame_end={"label": "Last frame (-1 = end)",
-               "tooltip": "Last frame to process (inclusive); -1 means the final frame."},
+               "tooltip": "Last frame to process (inclusive); -1 means the final frame. "
+                          "Default: -1."},
     seg_threshold={"label": "Seg. threshold", "min": 0.0, "max": 1.0, "step": 0.05,
-                   "tooltip": "Probability cutoff on the U-Net segmentation map (0–1). "
-                              "Lower = more / smaller detections. Default 0.5."},
+                   "tooltip": "Probability cutoff on the U-Net segmentation map (0–1); lower "
+                              "= more / smaller detections. Default: 0.5."},
     eps={"label": "Consensus eps (px)",
-         "tooltip": "Consensus clustering radius in pixels: detections from different "
-                    "models within this distance are merged into one division."},
+         "tooltip": "Consensus clustering radius in pixels: detections from different models "
+                    "within this distance merge into one division (ensemble only). "
+                    "Default: 10."},
     min_models={"label": "Min models (consensus)",
-                "tooltip": "Minimum number of models that must agree (within eps) to keep "
-                           "a consensus detection."},
+                "tooltip": "Minimum number of models that must agree (within eps) to keep a "
+                           "consensus detection (ensemble only). Default: 6."},
+    angle_mode={"choices": ["auto", "degrees", "radians"], "label": "Angle mode",
+                "tooltip": "How stored angle units are interpreted before consensus "
+                           "(ensemble only): auto-detect, or force degrees/radians. "
+                           "Default: auto."},
+    min_cluster_size={"label": "Min cluster size", "min": 2,
+                      "tooltip": "HDBSCAN minimum cluster size when grouping detections into "
+                                 "a consensus (ensemble only). Default: 2."},
+    min_samples={"label": "Min samples", "min": 1,
+                 "tooltip": "HDBSCAN/DBSCAN min_samples for consensus grouping (ensemble "
+                            "only); higher = more conservative. Default: 1."},
     pbar={"visible": False, "max": 0, "label": "idle"},
 )
 def dare2d_widget(
     image: "napari.layers.Image",
     movie: Path = Path(""),
-    backend: str = "keras",
+    backend: str = "pytorch",
     reg_dir: Path = _api.DEFAULT_REG_DIR,
     seg_dir: Path = _api.DEFAULT_SEG_DIR,
     model_sets: str = "8",
@@ -280,18 +328,36 @@ def dare2d_widget(
     seg_threshold: float = 0.5,
     eps: float = 10.0,
     min_models: int = 6,
+    angle_mode: str = "auto",
+    min_cluster_size: int = 2,
+    min_samples: int = 1,
     pbar: ProgressBar = None,
 ):
     """Detect cell divisions in the selected (T, Y, X) stack and overlay them.
 
     One model set -> raw detections. Several sets -> per-frame consensus.
     ``backend`` picks Keras (TF) or the PyTorch port (GPU); results are the same.
+    A click while a run is active stops it (the Run button toggles to **Stop DARE2D**).
     """
+    # A click while a run is in progress means STOP: abort the worker and bail out.
+    active = _DIV.get("worker")
+    if active is not None:
+        active.quit()
+        _cb = _DIV.get("call_button")
+        if _cb is not None:
+            _cb.text = "Stopping…"
+        return
     viewer = napari.current_viewer()
-    # A movie file (if given) is loaded as an Image layer and used; otherwise run on the
-    # selected Image layer -- so you can load a movie straight from this widget.
-    if movie and Path(movie).is_file():
-        image = viewer.add_image(_api.read_stack(movie), name=Path(movie).stem)
+    # Input precedence: the selected Image layer; else the movie file -- reusing an already-
+    # loaded layer of the same name so picking a movie never double-adds it (the movie picker
+    # also loads it on selection; see _division_widget_init).
+    if image is None and movie and Path(movie).is_file():
+        import napari.layers as nl
+        stem = Path(movie).stem
+        image = next((ly for ly in viewer.layers
+                      if isinstance(ly, nl.Image) and ly.name == stem), None)
+        if image is None:
+            image = viewer.add_image(_api.read_stack(movie), name=stem)
     if image is None:
         raise ValueError("Pick a movie file (.tif) or select an open Image layer first.")
     stack = np.asarray(image.data)
@@ -347,7 +413,8 @@ def dare2d_widget(
             yield (m + 1, len(sets))
         cons = _api.consensus(
             dict(acc), n_frames=n_frames, eps=eps,
-            min_models=min_models, num_models=len(sets),
+            min_models=min_models, num_models=len(sets), angle_mode=angle_mode,
+            min_cluster_size=min_cluster_size, min_samples=min_samples,
         )
         return _api.to_layer_data(cons, frame_base=1,
                                   name=f"{base_name} DARE2D consensus ({backend})")
@@ -367,11 +434,25 @@ def dare2d_widget(
         for w_ in _DIV.get("save_widgets", ()):   # reveal the save-results section
             w_.visible = True
 
+    cb = _DIV.get("call_button")
+
+    def _on_start():
+        pbar.visible = True
+        if cb is not None:
+            cb.text = "Stop DARE2D"
+
+    def _on_finish():
+        pbar.visible = False
+        _DIV["worker"] = None
+        if cb is not None:
+            cb.text = "Run DARE2D"
+
     worker = run()
     worker.yielded.connect(_on_yield)
     worker.returned.connect(_on_return)
-    worker.started.connect(lambda: setattr(pbar, "visible", True))
-    worker.finished.connect(lambda: setattr(pbar, "visible", False))
+    worker.started.connect(_on_start)
+    worker.finished.connect(_on_finish)
+    _DIV["worker"] = worker
     worker.start()
     return worker
 

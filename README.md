@@ -180,7 +180,7 @@ Vectors layer (axes). Then **DARE2D save results** exports them to disk — per-
 
 ## Postprocessing & consensus
 
-A single model set gives raw per-frame detections; the **8-model ensemble** is made robust by a
+A single model set gives raw per-frame detections; **N-model ensemble** (typically N = 8) is made robust by a
 consensus step — run automatically by the notebook and the napari plugin, and available as a
 standalone CLI:
 

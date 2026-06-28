@@ -85,6 +85,7 @@ __all__ = [
     "annotation_pairs",
     "annotations_to_layer_data",
     "read_stack",
+    "default_movie",
     "find_checkpoints",
     "parse_sets",
     "resolve_frames",
@@ -308,7 +309,8 @@ def run_ensemble(stack, reg_ckpts, seg_ckpts, frames=None, config_dir=CONFIG_DIR
 # ---------------------------------------------------------------------------
 # Consensus across models (in memory, no file I/O / no drawing)
 # ---------------------------------------------------------------------------
-def consensus(all_dets, n_frames, eps=10, min_models=6, num_models=8, angle_mode="auto"):
+def consensus(all_dets, n_frames, eps=10, min_models=6, num_models=8, angle_mode="auto",
+              min_cluster_size=2, min_samples=1):
     """Aggregate per-model detections into per-frame consensus detections.
 
     Returns ``{frame_1based: [consensus_dict, ...]}`` where each consensus dict
@@ -331,7 +333,8 @@ def consensus(all_dets, n_frames, eps=10, min_models=6, num_models=8, angle_mode
             if len(items) > 0
             else np.empty((0, 2))
         )
-        labels = cluster_hdbscan(pts, eps=eps, min_cluster_size=2, min_samples=1)
+        labels = cluster_hdbscan(pts, eps=eps, min_cluster_size=min_cluster_size,
+                                 min_samples=min_samples)
         cons = []
         if labels.size > 0:
             for lab in np.unique(labels):
@@ -497,6 +500,18 @@ def read_stack(path):
     except Exception:
         from skimage import io as skio
         return skio.imread(str(path))
+
+
+def default_movie(folder=DATA_DIR):
+    """The demo movie that sits beside the ``set_N`` folders -- the .tif/.tiff directly inside
+    ``folder`` (NOT inside a ``set_N`` subfolder). Returns its ``Path``, or ``None`` if absent.
+
+    Robust to renaming: it globs by extension at the top level, so the specific filename can
+    change as long as the movie stays in this folder (one top-level stack is expected).
+    """
+    folder = Path(folder)
+    hits = sorted(folder.glob("*.tif")) + sorted(folder.glob("*.tiff"))
+    return hits[0] if hits else None
 
 
 def annotations_to_layer_data(folder=DEFAULT_ANNOT_DIR, name="annotations",
