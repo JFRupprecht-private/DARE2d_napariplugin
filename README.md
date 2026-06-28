@@ -22,6 +22,13 @@ Robust detection uses an **8-model ensemble + consensus**. This repository conta
 faster **PyTorch** version, together with a **napari plugin** (`napari_dare2d`) that runs it
 interactively.
 
+> **Version 2.** This is **DARE2D v2**, building on the original
+> [v1 release](https://github.com/JFRupprecht-OM/DARE2d) (TensorFlow/Keras only). The two
+> headline additions in v2 are **(1) a PyTorch (GPU) backend** (`dare2d-torch/`) for inference
+> *and* leave-one-out training — same detections as Keras (parity ~1e-7) — and **(2) a napari
+> plugin** (`napari_dare2d/`) with widgets for interactive division detection, ground-truth
+> annotation viewing, and retraining.
+
 > **Citation.** If you use DARE2D, please cite the preprint:
 > Karpinski R., Gros A., Karnat M., Saaheelur Rahaman Q., Vanaret J., Saadaoui M., Tlili S. L.,
 > Rupprecht J.-F. (2026). *DARE: Division Axis and Region Estimation from 2D and 3D Time-Lapse
