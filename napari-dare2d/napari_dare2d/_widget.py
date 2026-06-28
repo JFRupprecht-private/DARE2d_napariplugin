@@ -506,14 +506,6 @@ _EXP_MAP = {"both": ["regression2d", "segmentation2d"],
             "regression": ["regression2d"], "segmentation": ["segmentation2d"]}
 
 
-def _fmt_eta(seconds):
-    """Human-readable ETA: '1h04m' / '12m30s' / '45s'."""
-    s = int(max(0, seconds))
-    h, rem = divmod(s, 3600)
-    m, sec = divmod(rem, 60)
-    return f"{h}h{m:02d}m" if h else (f"{m}m{sec:02d}s" if m else f"{sec}s")
-
-
 def _win_to_wsl(p):
     """C:\\a\\b -> /mnt/c/a/b (for invoking WSL on a Windows path)."""
     p = str(p)
@@ -527,6 +519,15 @@ def _retrain_widget_init(widget):
     _add_download_section(widget, _data_complete)
     if sys.platform != "win32":
         widget.backend.choices = [c for c in widget.backend.choices if "WSL" not in c]
+    # One progress bar per stage, hidden until that stage runs, so the segmentation bar
+    # appears below the regression bar once the regression stage is under way.
+    bars = {}
+    for _stage in ("regression", "segmentation"):
+        b = ProgressBar(max=0, label=f"{_stage} stage:")
+        b.visible = False
+        widget.append(b)
+        bars[_stage] = b
+    _RUN["bars"] = bars
     stop = PushButton(text="Stop retraining")
     stop.visible = False
     stop.tooltip = "Cancel the running retraining (terminates the training subprocess)."
@@ -571,7 +572,6 @@ def _retrain_widget_init(widget):
     epochs={"tooltip": "Number of training epochs per stage."},
     steps={"tooltip": "Optimizer steps per epoch."},
     crop={"tooltip": "Crop size in pixels that each frame is tiled into for training."},
-    pbar={"visible": False, "max": 0, "label": "idle"},
 )
 def retrain_widget(
     test_set: int = 8,
@@ -583,7 +583,6 @@ def retrain_widget(
     epochs: int = 50,
     steps: int = 1000,
     crop: int = 256,
-    pbar: ProgressBar = None,
 ):
     """Retrain DARE2D on a subset of sets, testing on the held-out ``test_set``.
 
@@ -618,13 +617,10 @@ def retrain_widget(
 
     @thread_worker
     def run():
-        n_stages = max(1, len(exps))
-        t0 = time.time()
-        anchor = {}            # ETA anchor: (elapsed, fraction) at first training progress
-        for si, exp in enumerate(exps):
+        for exp in exps:
             if _RUN["cancel"]:
                 break
-            stage = exp.replace("2d", "")
+            stage = exp.replace("2d", "")     # "regression" / "segmentation"
             # decode as UTF-8 w/ replacement: training output has non-cp1252 bytes
             # (progress bars / warnings) that the Windows default codec rejects.
             proc = subprocess.Popen(_cmd(exp), stdout=subprocess.PIPE,
@@ -636,37 +632,35 @@ def retrain_widget(
                 if _RUN["cancel"]:
                     proc.terminate()
                     break
-                # startup / preprocessing -> an indeterminate "busy" bar with a live label
                 mph = _PHASE_RE.search(line)
                 if mph:
-                    yield ("busy", f"{stage}: {mph.group(1).strip()}")
+                    # "training…" -> flip THIS stage's bar to a determinate 0% (so it stops
+                    # spinning the moment training begins); prep phases stay "busy".
+                    if mph.group(1).strip().lower().startswith("training"):
+                        yield (stage, "pct", 0.0, None)
+                    else:
+                        yield (stage, "busy", "preprocessing…", None)
                     continue
                 mpr = _PREP_RE.search(line)
                 if mpr:
-                    yield ("busy", f"{stage}: preprocessing {mpr.group(1)}…")
+                    yield (stage, "busy", f"preprocessing {mpr.group(1)}…", None)
                     continue
-                # within-stage fraction from a step heartbeat, else from an epoch line
-                within = ep = tot = None
+                # within-stage percent (0..100) from a step heartbeat, else an epoch line;
+                # the ETA is taken straight from the terminal's [step] line.
+                within = eta = None
                 ms = _STEP_RE.search(line)
                 if ms:
                     ep, tot, k, kn = (int(g) for g in ms.groups())
-                    within = ((ep - 1) * kn + k) / (tot * kn)
+                    within = ((ep - 1) * kn + k) / (tot * kn) * 100.0
+                    meta = re.search(r"eta (\S+)", line)
+                    eta = meta.group(1) if meta else None
                 else:
                     me = _EPOCH_RE.search(line)
                     if me:
                         ep, tot = int(me.group(1)), int(me.group(2))
-                        within = ep / tot
+                        within = ep / tot * 100.0
                 if within is not None:
-                    overall = (si + within) / n_stages            # 0..1 across all stages
-                    el = time.time() - t0
-                    anchor.setdefault("el", el)
-                    anchor.setdefault("f", overall)
-                    df, dt = overall - anchor["f"], el - anchor["el"]
-                    eta = (1 - overall) * dt / df if df > 1e-9 else 0.0
-                    lbl = f"{int(100 * overall)}%  {stage} ep {ep}/{tot}"
-                    if eta > 0:
-                        lbl += f"  eta {_fmt_eta(eta)}"
-                    yield ("pct", overall, lbl)
+                    yield (stage, "pct", within, eta)
             rc = proc.wait()
             if _RUN["cancel"]:
                 break
@@ -674,38 +668,59 @@ def retrain_widget(
                 raise RuntimeError(f"{exp} retraining failed (exit {rc}); see terminal")
         return rn
 
-    def _on_yield(v):
-        if v[0] == "busy":                      # indeterminate (animated) bar
-            pbar.max = 0
-            pbar.label = v[1]
-        else:                                   # ("pct", fraction, label)
-            pbar.max = 100
-            pbar.value = int(100 * v[1])
-            pbar.label = v[2]
-
-    def _done(_=None):
-        if _RUN["cancel"]:
-            pbar.label = "cancelled"
-        else:
-            pbar.max, pbar.value = 100, 100
-            pbar.label = f"done -> models/{rn}"
-        _RUN["proc"] = None
-
+    bars = _RUN.get("bars", {})
     _stop_btn = _RUN.get("stop_btn")
 
     def _set_stop(visible):
         if _stop_btn is not None:
             _stop_btn.visible = visible
 
+    def _on_yield(v):
+        stage, kind, val, eta = v
+        bar = bars.get(stage)
+        if bar is None:
+            return
+        bar.visible = True
+        if kind == "busy":                      # indeterminate (animated) bar
+            bar.max = 0
+            bar.label = f"{stage} stage: {val}"
+        else:                                   # determinate within-stage percent
+            bar.max = 100
+            bar.value = max(0, min(100, int(round(val))))
+            bar.label = f"{stage} stage:" + (f"  eta {eta}" if eta else "")
+
+    def _on_start():
+        for stage, bar in bars.items():         # fresh run: reset every bar
+            bar.visible = False
+            bar.max, bar.value = 0, 0
+            bar.label = f"{stage} stage:"
+        if exps:                                # show the first stage busy immediately
+            first = exps[0].replace("2d", "")
+            bar = bars.get(first)
+            if bar is not None:
+                bar.visible = True
+                bar.max = 0
+                bar.label = f"{first} stage: starting… (importing backend)"
+        _set_stop(True)
+
+    def _done(_=None):
+        _RUN["proc"] = None
+        if _RUN["cancel"]:
+            for bar in bars.values():
+                if bar.visible:
+                    bar.label = bar.label.split("  eta")[0] + "  (stopped)"
+
+    def _on_error(_e):
+        _RUN["proc"] = None
+        for bar in bars.values():
+            if bar.visible:
+                bar.label = "error (see terminal)"
+
     worker = run()
     worker.yielded.connect(_on_yield)
     worker.returned.connect(_done)
-    worker.errored.connect(lambda e: (setattr(pbar, "label", f"error: {e}"),
-                                      _RUN.__setitem__("proc", None)))
-    worker.started.connect(lambda: (setattr(pbar, "visible", True),
-                                     setattr(pbar, "max", 0),
-                                     setattr(pbar, "label", "starting… (importing backend)"),
-                                     _set_stop(True)))
+    worker.errored.connect(_on_error)
+    worker.started.connect(_on_start)
     worker.finished.connect(lambda: _set_stop(False))
     worker.start()
     return worker
