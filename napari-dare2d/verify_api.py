@@ -20,11 +20,14 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from napari_dare2d import _api as api  # noqa: E402
 
-ROOT = Path(__file__).resolve().parent.parent  # DARE2Dnapariplugin/
-STACK_PATH = ROOT / "set_8" / "siractinE2_14-03-23_1_post_z9-celldivisionlevel.tiff"
-REF_DIR = ROOT / "set_8"  # division_position{frame}.npy (set-8 reference)
-REG_CKPT = ROOT / "regression_checkpoints" / "checkpoints_set_8_all_but_target" / "best.h5"
-SEG_CKPT = ROOT / "segmentation_checkpoints" / "checkpoints_set_8_all_but_target" / "best.h5"
+# Canonical layout (derived in _api): the dataset lives under
+# data/neuroepithelium/neuroepithelium/set_8 and the curated checkpoints under
+# models/best/{regression,segmentation}_checkpoints — both produced by the
+# "Download DARE2D data" button. Use those paths so this check matches what ships.
+STACK_PATH = api.DATA_DIR / "set_8" / "siractinE2_14-03-23_1_post_z9-celldivisionlevel.tiff"
+REF_DIR = api.DATA_DIR / "set_8"  # division_position{frame}.npy (set-8 reference)
+REG_CKPT = api.DEFAULT_REG_DIR / "checkpoints_set_8_all_but_target" / "best.h5"
+SEG_CKPT = api.DEFAULT_SEG_DIR / "checkpoints_set_8_all_but_target" / "best.h5"
 
 FRAMES = [27, 28, 29]       # 0-based, mid-stack (56 frames); compared to division_position{i+1}.npy
 MATCH_TOL = 15.0            # px, for the soft reference comparison

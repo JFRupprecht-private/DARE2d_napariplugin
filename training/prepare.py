@@ -14,7 +14,7 @@ Derived data is written to a SEPARATE folder (default data/prepared/<set>/), lea
 set untouched, and cached (skip if already populated unless --force). DARE2d-main is read-only.
 
 Usage:
-    python retrain/prepare.py --set data/neuroepithelium/neuroepithelium/set_8 --crop 256
+    python training/prepare.py --set data/neuroepithelium/neuroepithelium/set_8 --crop 256
 """
 
 from __future__ import annotations

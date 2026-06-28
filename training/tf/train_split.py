@@ -8,11 +8,11 @@ losses / callbacks) for ONE split, overriding only:
   - the checkpoint output -> models/<run>/<reg|seg>_checkpoints/
     checkpoints_set_<test>_all_but_target/best.h5, with a HARD never-overwrite guard.
 
-DARE2d-main is imported read-only. Raw data is preprocessed once (retrain.prepare) into
+DARE2d-main is imported read-only. Raw data is preprocessed once (training/prepare.py) into
 data/prepared/crop_<n>/set_<k>/ before training. models/best/ is never written.
 
 Usage (TF env):
-  python retrain/train_split.py --experiment regression2d --test-set 8 \
+  python training/tf/train_split.py --experiment regression2d --test-set 8 \
       --run-name 2026-06-20 --epochs 50 --steps 1000 [--dry-run]
 """
 
@@ -42,7 +42,7 @@ from hydra.core.hydra_config import HydraConfig  # noqa: E402
 from omegaconf import OmegaConf  # noqa: E402
 
 from scripts.batch_train.batch_train_eval import BatchTrainingProcedure  # noqa: E402
-import prepare as prep  # noqa: E402  (retrain/prepare.py)
+import prepare as prep  # noqa: E402  (training/prepare.py)
 
 CONFIG_DIR = str(_REPO / "config")
 DEFAULT_RAW_ROOT = PROJECT_ROOT / "data" / "neuroepithelium" / "neuroepithelium"

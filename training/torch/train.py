@@ -12,7 +12,7 @@ Output: models/<run>/<reg|seg>_checkpoints/checkpoints_set_<test>_all_but_target
 is never written.
 
 Usage:
-  python retrain/torch_train.py --experiment regression2d --test-set 8 --run-name 2026-06-20
+  python training/torch/train.py --experiment regression2d --test-set 8 --run-name 2026-06-20
 """
 
 from __future__ import annotations

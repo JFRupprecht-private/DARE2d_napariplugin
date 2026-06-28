@@ -15,6 +15,7 @@ opencv-python==4.11.0.86
 albumentations
 scikit-image
 scikit-learn
+hdbscan          # density clustering for the multi-model consensus (falls back to sklearn DBSCAN if absent)
 scipy
 pandas
 matplotlib
