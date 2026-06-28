@@ -68,6 +68,9 @@ notebooks/                    # extra notebooks: Division_detection, data_analys
 > imported by module name off `sys.path` — an equal-status backend, just structured as a plain
 > folder rather than an installed package.
 
+> **Folder-level docs.** [`dare2d/README.md`](dare2d/README.md) explains the core-package internals;
+> [`napari-dare2d/README.md`](napari-dare2d/README.md) explains the plugin internals.
+
 ## Installation
 
 DARE2D has **two interchangeable backends** — TensorFlow/Keras and PyTorch — installed the same
