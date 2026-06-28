@@ -1,0 +1,13 @@
+# DARE2D — TensorFlow/Keras backend (one of two equal backends; see requirements-torch.txt).
+#
+# Installs the shared stack (requirements-common.txt) plus the TF-only packages. On native
+# Windows this backend is CPU-only (TF >=2.11 has no Windows GPU support); GPU TF training
+# needs WSL2 (see README). Pairs with the napari widget's `keras` inference backend.
+#
+#   pip install -r requirements-tf.txt
+
+-r requirements-common.txt
+
+tensorflow==2.12.0
+keras==2.12.0
+segmentation-models

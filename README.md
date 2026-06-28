@@ -53,13 +53,20 @@ Run_dare2d_Retraining.ipynb   # retraining notebook (preprocess -> leave-one-out
 notebooks/                    # data analysis / training-data display
 ```
 
+> **`dare2d/` vs `dare2d-torch/`.** `dare2d/` is the importable, `pip install -e .` **package**
+> (the TF/Keras backend — used as `import dare2d…` and in the Hydra configs), so it keeps the bare
+> name. `dare2d-torch/` is the self-contained **PyTorch** backend (models + inference + ONNX),
+> imported by module name off `sys.path` — an equal-status backend, just structured as a plain
+> folder rather than an installed package.
+
 ## Installation
 
-Core dependencies are captured in **`requirements.txt`**; the optional GPU/PyTorch backend
-adds **`requirements-torch.txt`** (step 5 below). The one hard constraint is
-**numpy `<1.24`** (pinned to `1.23.5`): TensorFlow 2.12 requires it, and that in turn fixes the
-rest of the stack (pip resolves a numpy-compatible napari automatically). Use a fresh conda env so
-nothing is re-resolved against newer numpy.
+DARE2D has **two interchangeable backends** — TensorFlow/Keras and PyTorch — installed the same
+way: a shared stack (**`requirements-common.txt`**) plus one or both of **`requirements-tf.txt`**
+/ **`requirements-torch.txt`** (each pulls in the shared stack via `-r`). The one hard constraint
+is **numpy `<1.24`** (pinned to `1.23.5`): TensorFlow 2.12 requires it and Torch 2.6 is compatible
+with it, so the pin holds for both. Use a fresh conda env so nothing is re-resolved against newer
+numpy.
 
 ```bash
 git clone https://github.com/qazi05/DARE2d
@@ -69,34 +76,30 @@ cd DARE2d
 conda create -n dare2d-napari python=3.10 -y
 conda activate dare2d-napari
 
-# 2) dependencies (TensorFlow/Keras core)
-pip install -r requirements.txt
+# 2) backend dependencies — each file includes the shared stack (requirements-common.txt).
+#    The napari plugin offers both backends in one dropdown, so for the full plugin install both:
+pip install -r requirements-tf.txt        # TensorFlow / Keras backend (CPU)
+pip install -r requirements-torch.txt     # PyTorch backend (GPU / CUDA)
 
-# 3) napari + its Qt backend — installed explicitly: pinning napari[all] in requirements.txt
+# 3) napari + its Qt backend — installed explicitly: pinning napari[all] in the requirements
 #    does not reliably pull a Qt backend on a fresh resolve.
 pip install "napari[all]"
 
 # 4) the DARE2D core, then the plugin (no deps -> don't disturb the pins)
 pip install -e .
 pip install --no-build-isolation --no-deps -e ./napari-dare2d
-
-# 5) (optional) GPU inference backend — PyTorch, into the SAME env (numpy 1.23.5 stays put)
-pip install -r requirements-torch.txt
 ```
 
 > On a corporate network you may need `--trusted-host pypi.org --trusted-host files.pythonhosted.org`.
 >
-> **Optional GPU (PyTorch backend).** Step 5 installs the pinned Torch stack from
-> **`requirements-torch.txt`** (`torch==2.6.0+cu124`, `torchvision==0.21.0+cu124`) into the
-> *same* env: Torch 2.6 is numpy-1.23 compatible, so `numpy==1.23.5` is untouched and
-> TensorFlow keeps working. This enables the widget's `pytorch` inference backend (same
-> detections, parity ~1e-7). The `.pt` weights **ship with the Zenodo data** — the **DARE2D
-> download data** button unzips `best.pt` next to each `best.h5` in
-> `models/best/{regression,segmentation}_checkpoints/`, so the `pytorch` backend uses the **same
-> checkpoint fields as Keras** (and a retrained run dir works the same way, no rename). Users
-> regenerate nothing; developers can, via `dare2d-torch/convert_to_torch.py` (see
-> `dare2d-torch/README.md`). (For a non-CUDA-12.4 machine, swap `cu124` for your toolkit in
-> `requirements-torch.txt`.)
+> **The two backends are peers.** `requirements-tf.txt` and `requirements-torch.txt` each install
+> the shared `requirements-common.txt` plus their framework; the napari widget's **Inference
+> backend** dropdown switches between `keras` (TF, CPU) and `pytorch` (GPU) — same detections,
+> parity ~1e-7. The PyTorch `.pt` weights ship with the Zenodo data (unzipped next to each
+> `best.h5`; see **Models & data**), so the `pytorch` backend uses the same checkpoint fields as
+> `keras` — a retrained run dir works the same way, no rename. For a non-CUDA-12.4 machine, swap
+> `cu124` for your toolkit in `requirements-torch.txt`. (Native-Windows TF is CPU-only; GPU TF
+> training needs WSL2 — see the note under **Retraining**.)
 
 ## Models & data
 

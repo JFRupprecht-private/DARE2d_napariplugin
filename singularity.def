@@ -10,10 +10,11 @@ Stage: build
     dare2d /dare2d/dare2d
     notebooks /dare2d/notebooks
     scripts /dare2d/scripts
-    requirements.txt /dare2d/requirements.txt
+    requirements-common.txt /dare2d/requirements-common.txt
+    requirements-tf.txt /dare2d/requirements-tf.txt
     setup.py /dare2d/setup.py
 
 %post
     apt update && apt install libgl1 libc6 -y 
     cd /dare2d
-    pip install -r requirements.txt
+    pip install -r requirements-tf.txt

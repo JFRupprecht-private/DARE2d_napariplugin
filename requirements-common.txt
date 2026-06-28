@@ -1,13 +1,13 @@
-# DARE2D dependencies.
-# HARD CONSTRAINT: numpy must stay <1.24 — TensorFlow 2.12 requires it. That single pin fixes the
-# rest of the stack (pip resolves a numpy-1.23-compatible napari automatically). Install into a
-# fresh conda env (python 3.10) so nothing gets re-resolved against newer numpy.
+# DARE2D — shared dependencies, needed by BOTH backends (TensorFlow/Keras and PyTorch).
+#
+# HARD CONSTRAINT: numpy must stay <1.24 — TensorFlow 2.12 requires it, and Torch 2.6 is
+# numpy-1.23 compatible, so this single pin holds for both backends. Install into a fresh
+# conda env (python 3.10) so nothing gets re-resolved against newer numpy.
+#
+# You normally don't install this directly: requirements-tf.txt and requirements-torch.txt
+# each pull it in via `-r requirements-common.txt`.
 
-# --- core deep-learning stack ---
-tensorflow==2.12.0
-keras==2.12.0
 numpy==1.23.5
-segmentation-models
 greenlet==2.0.2
 
 # --- imaging / data / numerics ---
