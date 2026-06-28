@@ -45,8 +45,9 @@ _DERIVED = ("mask", "overlay", "_pred", "result", "shifted")
 
 def find_movie(set_dir: Path) -> Path:
     set_dir = Path(set_dir)
-    cands = [p for p in set_dir.glob("*.tif*")
-             if not any(k in p.name.lower() for k in _DERIVED)]
+    cands = [p for p in set_dir.iterdir()
+             if p.is_file() and p.suffix.lower() in (".tif", ".tiff")
+             and not any(k in p.name.lower() for k in _DERIVED)]
     if len(cands) != 1:
         raise ValueError(
             f"expected exactly 1 source movie in {set_dir}, found {[c.name for c in cands]} "

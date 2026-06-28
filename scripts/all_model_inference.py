@@ -23,6 +23,7 @@ The script performs the following steps:
 """
 
 import os
+import sys
 import subprocess
 import glob
 
@@ -46,8 +47,12 @@ def main():
     - Uses subprocess to call the multistage_detection2d script for each combination
     """
 
-    # Discover input images
-    input_images = glob.glob(os.path.join(INPUT_DIR, "*.tif"))
+    # Discover input images (.tif/.tiff, case-insensitive for non-Windows filesystems)
+    input_images = [
+        os.path.join(INPUT_DIR, f)
+        for f in (sorted(os.listdir(INPUT_DIR)) if os.path.isdir(INPUT_DIR) else [])
+        if f.lower().endswith((".tif", ".tiff"))
+    ]
 
     if not input_images:
         print("Error: No .tif images found in the input directory!")
@@ -90,7 +95,7 @@ def main():
             # Construct command for running inference
             # Calls the multistage_detection2d script with appropriate arguments
             cmd = [
-                "python",
+                sys.executable,
                 "-m", "scripts.inference.multistage_detection2d",
                 "--regression", reg_path,
                 "--segmentation", seg_path,

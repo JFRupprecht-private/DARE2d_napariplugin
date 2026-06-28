@@ -510,8 +510,11 @@ def _win_to_wsl(p):
 
 def _retrain_widget_init(widget):
     """Add a 'Download data' button (when the full Zenodo data is incomplete) and a 'Stop
-    retraining' button (shown only while a run is active)."""
+    retraining' button (shown only while a run is active). The WSL-GPU backend shells out to
+    ``wsl`` and is Windows-only, so it is hidden on other platforms."""
     _add_download_section(widget, _data_complete)
+    if sys.platform != "win32":
+        widget.backend.choices = [c for c in widget.backend.choices if "WSL" not in c]
     stop = PushButton(text="Stop retraining")
     stop.visible = False
     stop.tooltip = "Cancel the running retraining (terminates the training subprocess)."
@@ -591,6 +594,9 @@ def retrain_widget(
         if backend.startswith("PyTorch"):
             return [sys.executable, str(_TRAIN_DIR / "torch" / "train.py"), *common]
         if "WSL" in backend:
+            if sys.platform != "win32":
+                raise RuntimeError("The 'TensorFlow (WSL GPU)' backend needs Windows + WSL2; "
+                                   "use 'PyTorch (GPU)' or 'TensorFlow (CPU)' on this OS.")
             sh = _win_to_wsl(_TRAIN_DIR / "tf" / "wsl" / "run_train.sh")
             return ["wsl", "-d", "Ubuntu", "bash", sh, *common]
         return [sys.executable, str(_TRAIN_DIR / "tf" / "train_split.py"), *common]

@@ -53,7 +53,12 @@ def find_rgb_generator(Directory_name):
     """
 
     img_train_folder = os.path.join(Directory_name, "currimg/")
-    image_name_arr = glob.glob(os.path.join(img_train_folder, "*.tif"))
+    # .tif/.tiff, case-insensitive (uppercase extensions are skipped by glob on case-sensitive FS)
+    image_name_arr = [
+        os.path.join(img_train_folder, f)
+        for f in (sorted(os.listdir(img_train_folder)) if os.path.isdir(img_train_folder) else [])
+        if f.lower().endswith((".tif", ".tiff"))
+    ]
 
     im = imread(image_name_arr[0])
     if len(im.shape) != 3:

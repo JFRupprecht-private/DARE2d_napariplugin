@@ -510,7 +510,11 @@ def default_movie(folder=DATA_DIR):
     change as long as the movie stays in this folder (one top-level stack is expected).
     """
     folder = Path(folder)
-    hits = sorted(folder.glob("*.tif")) + sorted(folder.glob("*.tiff"))
+    if not folder.is_dir():
+        return None
+    # match by extension case-insensitively (uppercase .TIF/.TIFF on a case-sensitive FS)
+    hits = sorted(p for p in folder.iterdir()
+                  if p.is_file() and p.suffix.lower() in (".tif", ".tiff"))
     return hits[0] if hits else None
 
 
