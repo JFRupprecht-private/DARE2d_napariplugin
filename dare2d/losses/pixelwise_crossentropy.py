@@ -46,33 +46,3 @@ def weighted_dice_focal_loss(gamma=2.0, smooth=1.0):
         return tf.reduce_mean(avg)
 
     return dice_focal
-
-
-if __name__ == "__main__":
-    import numpy as np
-    from dare2d.datamodule.generator.seg_2dataset import SegmentationDataset
-
-    data_folder = "/home/hcourtei/Projects//dare2d/data/train"  # '../data/3D_DivDetect/all_train_10.03.2023/train_10.03.23'
-    ds = SegmentationDataset(data_folder, type_mask="circle", cell_size=25, renorm="min-max")
-    X0, y0 = ds[0]
-    X1, y1 = ds[1]
-    y_true = np.array([y0, y1])
-    y_true = y_true.reshape(y_true.shape[0], -1)
-    y_pred = np.zeros_like(y_true)
-    bx = tf.keras.losses.BinaryCrossentropy(
-        from_logits=True, reduction=tf.keras.losses.Reduction.NONE
-    )
-
-    for W in [1, 20, 50]:
-        loss_func = pixelwise_weighted_binary_crossentropy2(W)
-        L0 = loss_func(y_true, y_true)
-        bc0 = bx(y_true, y_true)
-        Lnull = loss_func(y_true, y_pred)
-        bxnull = bx(y_true, y_pred)
-
-        print(f"W={W}: L0 {L0}  bc0{bc0} Lnull{Lnull} bxnull{bxnull}")
-
-    # cx = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False)
-    # bx = tf.keras.losses.BinaryCrossentropy(from_logits=True, reduction=tf.keras.losses.Reduction.NONE)
-    #
-    # L2 = bx(y_true, y_pred)

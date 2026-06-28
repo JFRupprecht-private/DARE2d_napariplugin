@@ -69,12 +69,6 @@ def image_to_crops(x, bipoints, size):
                     if point_in_range(center, y, y_max, cx, cx_max):
                         new_p1 = shift_points(p1, y, cx)
                         new_p2 = shift_points(p2, y, cx)
-                        print(
-                            f"point original P1: {p1} vs new point {new_p1} in range x[{cx}, {cx_max}] & y[{y}, {y_max}]"
-                        )
-                        print(
-                            f"point original P2: {p2} vs new point {new_p2} in range x[{cx}, {cx_max}] & y[{y}, {y_max}]"
-                        )
                         points.append((new_p1, new_p2))
 
             crops_with_points.append((crop, points))
