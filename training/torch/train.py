@@ -219,8 +219,11 @@ def main():
                 el = now - train_t0
                 rate = done / el if el > 0 else 0.0
                 eta = (total_steps - done) / rate if rate > 0 else 0.0
+                pct = 100.0 * done / total_steps
+                nfill = int(round(20 * done / total_steps))
+                bar = "#" * nfill + "-" * (20 - nfill)   # ASCII-safe (no cp1252 crash)
                 print(f"[step] {ep+1}/{args.epochs} {si+1}/{args.steps} "
-                      f"{100.0 * done / total_steps:.0f}% {rate:.1f} it/s "
+                      f"[{bar}] {pct:.0f}% {rate:.1f} it/s "
                       f"eta {_fmt_eta(eta)} (this stage)", flush=True)
                 last_log = now
         val = evaluate(model, val_loader, kind, device, max_batches=50)

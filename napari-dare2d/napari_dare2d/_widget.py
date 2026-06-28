@@ -506,6 +506,21 @@ _EXP_MAP = {"both": ["regression2d", "segmentation2d"],
             "regression": ["regression2d"], "segmentation": ["segmentation2d"]}
 
 
+def _echo(text):
+    """Mirror a chunk of the training subprocess's output to the terminal napari was
+    launched from, so the FULL log (progress bar, %, it/s, eta, per-epoch losses) is
+    visible there — not only summarized in the GUI progress bar. Best-effort and never
+    fatal: a logging hiccup must not interrupt a training run."""
+    out = sys.stdout if sys.stdout is not None else sys.__stdout__
+    if out is None:                       # e.g. pythonw / no console attached
+        return
+    try:
+        out.write(text)
+        out.flush()
+    except Exception:
+        pass
+
+
 def _win_to_wsl(p):
     """C:\\a\\b -> /mnt/c/a/b (for invoking WSL on a Windows path)."""
     p = str(p)
@@ -612,8 +627,11 @@ def retrain_widget(
             return ["wsl", "-d", "Ubuntu", "bash", sh, *common]
         return [sys.executable, str(_TRAIN_DIR / "tf" / "train_split.py"), *common]
 
+    # PYTHONIOENCODING=utf-8 makes the child encode stdout as UTF-8 to match the pipe's
+    # encoding="utf-8" below; without it the child uses cp1252 on Windows and any non-ASCII
+    # (…, —, progress glyphs) decodes to mojibake in the teed terminal log.
     env = dict(os.environ, KMP_DUPLICATE_LIB_OK="TRUE", SM_FRAMEWORK="tf.keras",
-               PYTHONUNBUFFERED="1")
+               PYTHONUNBUFFERED="1", PYTHONIOENCODING="utf-8")
 
     @thread_worker
     def run():
@@ -621,6 +639,7 @@ def retrain_widget(
             if _RUN["cancel"]:
                 break
             stage = exp.replace("2d", "")     # "regression" / "segmentation"
+            _echo(f"\n========== {stage} stage - retraining ({backend}) ==========\n")
             # decode as UTF-8 w/ replacement: training output has non-cp1252 bytes
             # (progress bars / warnings) that the Windows default codec rejects.
             proc = subprocess.Popen(_cmd(exp), stdout=subprocess.PIPE,
@@ -632,6 +651,7 @@ def retrain_widget(
                 if _RUN["cancel"]:
                     proc.terminate()
                     break
+                _echo(line)                   # tee: full training log -> terminal
                 mph = _PHASE_RE.search(line)
                 if mph:
                     # "training…" -> flip THIS stage's bar to a determinate 0% (so it stops
