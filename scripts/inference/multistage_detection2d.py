@@ -98,6 +98,26 @@ def inference_strategy(x, seg_model, window_size=256):
     size = window_size
     stride = int(np.floor(size / 2))  # 50% overlap between patches
 
+    # Zero-pad so that (a) the image is at least one window in each dimension and (b) the strided
+    # windows tile it completely. Without this, an image smaller than `size` crashes
+    # sliding_window_view, and any side whose length is not `size + k*stride` leaves an uncovered
+    # bottom/right strip that reconstructs to NaN (0/0) and silently drops detections there.
+    h0, w0 = x.shape[0], x.shape[1]
+
+    def _pad_to(d):
+        if d <= size:
+            return size
+        return size + int(np.ceil((d - size) / stride)) * stride
+
+    h_pad, w_pad = _pad_to(h0), _pad_to(w0)
+    if (h_pad, w_pad) != (h0, w0):
+        x = np.pad(
+            x,
+            ((0, h_pad - h0), (0, w_pad - w0), (0, 0)),
+            mode="constant",
+            constant_values=0,
+        )
+
     # Extract sliding windows from the input image
     w = np.lib.stride_tricks.sliding_window_view(x, (size, size, 3))[
         ::stride, ::stride, 0
@@ -125,7 +145,7 @@ def inference_strategy(x, seg_model, window_size=256):
             n[y:y_max, cx:cx_max] += 1
 
     mean_pred = m / n  # Average predictions where patches overlap
-    return mean_pred
+    return mean_pred[:h0, :w0, :]  # crop back to the original (pre-pad) frame size
 
 
 def crop_img_from_center(img, center, half_crop_size):
@@ -211,6 +231,22 @@ def main(regression, segmentation, img, output):
 
     # Load image
     stack_im = io.imread(img)
+
+    # Validate / normalize the input stack early: the segmentation stage feeds each frame to
+    # cv2.equalizeHist, which requires an 8-bit single-channel image. Fail with a clear message
+    # here instead of a cryptic OpenCV error deep inside the per-frame loop.
+    if stack_im.ndim == 2:                       # a single (H, W) frame -> 1-frame stack
+        stack_im = stack_im[None]
+    if stack_im.ndim != 3:
+        raise ValueError(
+            f"expected a grayscale image stack of shape (T, H, W); got shape {stack_im.shape}. "
+            "RGB/multichannel movies are not supported - convert to 8-bit grayscale first."
+        )
+    if stack_im.dtype != np.uint8:
+        raise ValueError(
+            f"expected an 8-bit grayscale stack; got dtype={stack_im.dtype}, shape={stack_im.shape} "
+            "- convert to 8-bit (uint8) first."
+        )
 
     inference_results = []
 
