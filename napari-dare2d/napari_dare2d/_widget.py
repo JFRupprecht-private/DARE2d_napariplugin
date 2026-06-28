@@ -198,11 +198,32 @@ def _add_save_section(widget):
     _DIV["save_widgets"] = (out, overlay, btn)
 
 
+def _add_advanced_section(widget):
+    """Group the fine-tuning controls under an 'Advanced parameters' toggle. magicgui has no
+    native collapsible, so a PushButton flips the controls' .visible (collapsed by default;
+    click to expand, click again to collapse)."""
+    advanced = (widget.seg_threshold, widget.eps, widget.min_models)
+    toggle = PushButton(text="▸ Advanced parameters")
+    toggle.tooltip = "Show/hide segmentation threshold and consensus tuning (eps, min models)."
+    for w_ in advanced:
+        w_.visible = False                                  # collapsed by default
+    widget.insert(list(widget).index(widget.seg_threshold), toggle)  # toggle sits above them
+
+    def _toggle():
+        show = not advanced[0].visible
+        for w_ in advanced:
+            w_.visible = show
+        toggle.text = "▾ Advanced parameters" if show else "▸ Advanced parameters"
+
+    toggle.clicked.connect(_toggle)
+
+
 def _division_widget_init(widget):
     """Download-data button (when the full Zenodo data is incomplete) + hidden save-results
-    section; tooltips."""
+    section + collapsible advanced parameters; tooltips."""
     _add_download_section(widget, _data_complete)
     _add_save_section(widget)
+    _add_advanced_section(widget)
     cb = getattr(widget, "_call_button", None)
     if cb is not None:
         cb.tooltip = ("Detect divisions in the selected stack and overlay the centres "
@@ -236,6 +257,9 @@ def _division_widget_init(widget):
                  "tooltip": "First frame to process (0-based)."},
     frame_end={"label": "Last frame (-1 = end)",
                "tooltip": "Last frame to process (inclusive); -1 means the final frame."},
+    seg_threshold={"label": "Seg. threshold", "min": 0.0, "max": 1.0, "step": 0.05,
+                   "tooltip": "Probability cutoff on the U-Net segmentation map (0–1). "
+                              "Lower = more / smaller detections. Default 0.5."},
     eps={"label": "Consensus eps (px)",
          "tooltip": "Consensus clustering radius in pixels: detections from different "
                     "models within this distance are merged into one division."},
@@ -253,6 +277,7 @@ def dare2d_widget(
     model_sets: str = "8",
     frame_start: int = 0,
     frame_end: int = -1,
+    seg_threshold: float = 0.5,
     eps: float = 10.0,
     min_models: int = 6,
     pbar: ProgressBar = None,
@@ -300,7 +325,8 @@ def dare2d_widget(
             reg, seg = build(0)
             per_frame = {}
             for k, i in enumerate(frames):
-                per_frame.update(_api.infer_stack(stack, reg, seg, frames=[i]))
+                per_frame.update(_api.infer_stack(stack, reg, seg, frames=[i],
+                                                  threshold=seg_threshold))
                 yield (k + 1, len(frames))
             return _api.to_layer_data(per_frame, frame_base=0,
                                       name=f"{base_name} DARE2D ({backend})")
@@ -310,7 +336,7 @@ def dare2d_widget(
         acc = defaultdict(list)
         for m in range(len(sets)):
             reg, seg = build(m)
-            res = _api.infer_stack(stack, reg, seg, frames=frames)
+            res = _api.infer_stack(stack, reg, seg, frames=frames, threshold=seg_threshold)
             for i, dets in res.items():
                 for d in dets:
                     acc[i + 1].append(

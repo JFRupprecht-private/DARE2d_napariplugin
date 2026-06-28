@@ -205,12 +205,14 @@ def infer_stack(
     progress_cb=None,
     window_size: int = 256,
     crop_size: int = 64,
+    threshold: float = 0.5,
 ):
     """Run the two-stage detection on a ``(T, Y, X)`` stack.
 
     Returns ``{frame_index: [ {x, y, angle, length}, ... ]}`` keyed by the
     0-based frame index. This is the body of ``multistage_detection2d.main``
-    with the disk I/O and visualization stripped out.
+    with the disk I/O and visualization stripped out. ``threshold`` is the
+    probability cutoff on the segmentation map (default 0.5, the original value).
 
     ponytail: assumes 8-bit input (cv2.equalizeHist + /255), like the original
     script. Ceiling: 16-bit stacks would need rescaling first.
@@ -240,7 +242,7 @@ def infer_stack(
         x = np.stack([prev, curr, nxt], axis=-1).astype(np.float32) / 255.0
 
         seg_raw = inference_strategy(x, seg_model, window_size=window_size)
-        seg_bin = np.where(seg_raw > 0.5, 255, 0).astype(np.uint8)
+        seg_bin = np.where(seg_raw > threshold, 255, 0).astype(np.uint8)
         centers = extract_centers(seg_bin)
 
         xp = np.pad(
