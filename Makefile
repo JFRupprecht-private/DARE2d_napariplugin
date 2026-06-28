@@ -1,7 +1,7 @@
 setup:
 	python setup.py install
 
-clean: clean_doc
+clean:
 	$(RM) *.cpp
 	$(RM) *.so
 	$(RM) **/*.cpp
@@ -13,17 +13,6 @@ clean: clean_doc
 	$(RM) -rf htmlcov/
 	$(RM) -rf .ipynb*
 	$(RM) -rf .pytest_cache/
-
-
-
-clean_doc:
-	$(RM) -rf docs/build
-
-
-docs: setup clean_doc
-	sphinx-apidoc -o docs/ .
-	$(MAKE) -C docs clean
-	$(MAKE) -C docs html
 
 sort_python:
 	isort -sl -rc -y   # single line imports for cleaner versionning via git

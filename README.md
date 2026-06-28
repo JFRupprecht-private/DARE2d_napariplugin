@@ -57,9 +57,8 @@ training/                     # leave-one-out retraining: tf/ (CPU + WSL-GPU) + 
 models/                       # checkpoints (git-ignored): best/ = curated 8-set ensemble; <run>/ = retraining outputs
 data/                         # datasets (git-ignored): neuroepithelium/ raw sets + prepared/ generator cache
 input/  output/               # CLI inference inputs (you populate) / outputs (git-ignored)
-Run_dare2d_Prediction.ipynb   # inference notebook (ensemble + consensus)
-Run_dare2d_Retraining.ipynb   # retraining notebook (preprocess -> leave-one-out -> checkpoints)
-notebooks/                    # extra notebooks: Division_detection, data_analysis, train_data_display
+notebooks/                    # Run_dare2d_Prediction (inference), Run_dare2d_Retraining (retraining),
+                              #   Division_detection, data_analysis, train_data_display
 ```
 
 > **`dare2d/` vs `dare2d-torch/`.** `dare2d/` is the importable, `pip install -e .` **package**
@@ -162,7 +161,7 @@ python scripts/all_model_inference.py
 python -m scripts.inference.multistage_detection2d --regression ... --segmentation ... --img ... --output ...
 ```
 
-**2. Notebook.** Open `Run_dare2d_Prediction.ipynb` — discovers `.tif` inputs, runs the ensemble,
+**2. Notebook.** Open `notebooks/Run_dare2d_Prediction.ipynb` — discovers `.tif` inputs, runs the ensemble,
 generates consensus detections, and plots them.
 
 **3. napari plugin.** Launch `napari`, then **Plugins → DARE2D division detection**. Load a `.tif`
@@ -214,7 +213,7 @@ python -m scripts.batch_train.batch_train_eval experiment=regression2d batch_tra
 python -m scripts.batch_train.batch_train_eval experiment=segmentation2d batch_training=center_detection2d
 ```
 
-**2. Notebook.** Open `Run_dare2d_Retraining.ipynb` — it preprocesses each raw set into the
+**2. Notebook.** Open `notebooks/Run_dare2d_Retraining.ipynb` — it preprocesses each raw set into the
 per-frame layout the generators read, then runs the same leave-one-out training for both stages.
 
 **3. napari plugin.** Launch `napari`, then **Plugins → DARE2D retraining**. Pick the **Test set**
