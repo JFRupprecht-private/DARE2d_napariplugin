@@ -28,9 +28,10 @@ os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")
 os.environ.setdefault("CUDA_VISIBLE_DEVICES", "0")
 
-_HERE = Path(__file__).resolve().parent
-PROJECT_ROOT = _HERE.parent
-for p in (str(_HERE), str(PROJECT_ROOT / "dare2d-torch")):
+_HERE = Path(__file__).resolve().parent           # training/torch/
+PROJECT_ROOT = _HERE.parents[1]                    # repo root (training/torch -> root)
+# training/ holds prepare.py; training/tf/ holds train_split.py; dare2d-torch/ holds models_torch.
+for p in (str(_HERE.parent), str(_HERE.parent / "tf"), str(PROJECT_ROOT / "dare2d-torch")):
     if p not in sys.path:
         sys.path.insert(0, p)
 

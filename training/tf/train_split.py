@@ -27,11 +27,11 @@ os.environ.setdefault("SM_FRAMEWORK", "tf.keras")
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
 
-_HERE = Path(__file__).resolve().parent
-PROJECT_ROOT = _HERE.parent
-# Flattened/merged layout: dare2d/, scripts/, config/, annotator/ live at the repo root.
+_HERE = Path(__file__).resolve().parent          # training/tf/
+PROJECT_ROOT = _HERE.parents[1]                   # repo root (training/tf -> root)
+# Repo root holds dare2d/, scripts/, config/, annotator/; training/ holds the shared prepare.py.
 _REPO = PROJECT_ROOT
-for p in (str(_REPO), str(_HERE)):
+for p in (str(_REPO), str(_HERE.parent)):         # root (scripts/annotator) + training/ (prepare)
     if p not in sys.path:
         sys.path.insert(0, p)
 
