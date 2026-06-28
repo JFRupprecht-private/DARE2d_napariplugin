@@ -47,7 +47,7 @@ scripts/                      # CLIs: inference, batch_train (leave-one-out), po
 annotator/                    # preprocessing (format_gastru) + annotation utilities
 napari-dare2d/                # the napari plugin (in-process inference + retraining widgets)
 dare2d-torch/                 # PyTorch GPU port of both models (inference) + ONNX export
-retrain/                      # leave-one-out retraining drivers (TF CPU/WSL-GPU, PyTorch-GPU)
+training/                     # leave-one-out retraining: tf/ (CPU + WSL-GPU) + torch/ (GPU) + shared prepare.py
 main2d.ipynb                  # inference notebook (ensemble + consensus)
 Run_dare2d_Retraining.ipynb   # retraining notebook (preprocess -> leave-one-out -> checkpoints)
 notebooks/                    # data analysis / training-data display
@@ -162,9 +162,9 @@ progress bar tracks the epochs and an inline **Stop retraining** button cancels 
 `models/<run>/…` (dated; `models/best/` is never overwritten). If the dataset isn't present yet, a
 **Download data** button appears in the widget first.
 
-The backends live in `retrain/` (native-Windows TF is CPU-only): a WSL2 TF-GPU path and a
-native-Windows PyTorch-GPU backend (`retrain/torch_train.py`), wrapped by both the notebook and the
-napari widget above.
+The backends live in `training/` (native-Windows TF is CPU-only): `tf/` (a WSL2 TF-GPU path +
+native-Windows CPU `train_split.py`) and `torch/` (native-Windows GPU `train.py`), wrapped by both
+the notebook and the napari widget above.
 
 > **Windows / WSL note.** Native-Windows TensorFlow 2.12 is **CPU-only** (TF ≥2.11 has no
 > Windows GPU support), so on Windows **TF retraining runs on CPU**. Training TensorFlow **on

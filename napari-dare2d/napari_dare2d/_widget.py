@@ -362,15 +362,15 @@ def annotations_widget(
 # ---------------------------------------------------------------------------
 # Retraining widget (leave-one-out) with a backend toggle
 # ---------------------------------------------------------------------------
-# Spawns the retrain drivers in retrain/ as a subprocess (training is long/heavy;
+# Spawns the training drivers in training/ as a subprocess (training is long/heavy;
 # a subprocess keeps napari responsive, can use a different env/WSL, and is killable).
-# Three backends -> three commands (see RETRAINING_PLAN.md):
-#   PyTorch (GPU)      : python retrain/torch_train.py    (native Windows GPU)
-#   TensorFlow (CPU)   : python retrain/train_split.py    (Windows, CPU)
-#   TensorFlow (WSL GPU): wsl bash retrain/wsl/run_train.sh (TF 2.12 GPU in WSL2)
+# Three backends -> three commands:
+#   PyTorch (GPU)       : python training/torch/train.py         (native Windows GPU)
+#   TensorFlow (CPU)    : python training/tf/train_split.py      (Windows, CPU)
+#   TensorFlow (WSL GPU): wsl bash training/tf/wsl/run_train.sh  (TF 2.12 GPU in WSL2)
 # Each writes models/<run>/<reg|seg>_checkpoints/...; models/best/ is never touched.
 
-_RETRAIN_DIR = _api.PROJECT_ROOT / "retrain"
+_TRAIN_DIR = _api.PROJECT_ROOT / "training"
 _RUN = {"proc": None, "cancel": False}            # proc + cancel flag + the inline Stop button
 _EPOCH_RE = re.compile(r"(?:\[epoch |Epoch )(\d+)/(\d+)")
 _EXP_MAP = {"both": ["regression2d", "segmentation2d"],
@@ -464,11 +464,11 @@ def retrain_widget(
         if train_sets.strip():
             common += ["--train-sets", train_sets.strip()]
         if backend.startswith("PyTorch"):
-            return [sys.executable, str(_RETRAIN_DIR / "torch_train.py"), *common]
+            return [sys.executable, str(_TRAIN_DIR / "torch" / "train.py"), *common]
         if "WSL" in backend:
-            sh = _win_to_wsl(_RETRAIN_DIR / "wsl" / "run_train.sh")
+            sh = _win_to_wsl(_TRAIN_DIR / "tf" / "wsl" / "run_train.sh")
             return ["wsl", "-d", "Ubuntu", "bash", sh, *common]
-        return [sys.executable, str(_RETRAIN_DIR / "train_split.py"), *common]
+        return [sys.executable, str(_TRAIN_DIR / "tf" / "train_split.py"), *common]
 
     env = dict(os.environ, KMP_DUPLICATE_LIB_OK="TRUE", SM_FRAMEWORK="tf.keras",
                PYTHONUNBUFFERED="1")
