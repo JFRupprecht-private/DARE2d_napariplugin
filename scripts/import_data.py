@@ -44,9 +44,9 @@ def get_data_home(data_home=None):
     data_home : str | None
         The path to dare2d data dir.
     """
-    this_filepath = __file__  # example dare2d_path = '/home/hcourtei/Projects/dare2d/dare2d/scripts'
+    this_filepath = __file__
     dare2d_root = os.path.dirname(
-        os.path.dirname(this_filepath))  # sk_root = '/home/hcourtei/Projects/dare2d/dare2d'
+        os.path.dirname(this_filepath))
     print("Root Dir for project: ", dare2d_root)
     if data_home is None:
         data_home = os.path.join(dare2d_root, "dataCells")
