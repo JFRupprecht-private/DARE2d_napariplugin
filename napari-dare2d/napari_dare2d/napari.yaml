@@ -2,6 +2,9 @@ name: napari-dare2d
 display_name: DARE2D
 contributions:
   commands:
+    - id: napari-dare2d.get_reader
+      title: Open a .tif/.tiff image stack
+      python_name: napari_dare2d._reader:napari_get_reader
     - id: napari-dare2d.make_widget
       title: DARE2D division detection
       python_name: napari_dare2d._widget:dare2d_widget
@@ -11,6 +14,10 @@ contributions:
     - id: napari-dare2d.retrain_widget
       title: DARE2D retraining
       python_name: napari_dare2d._widget:retrain_widget
+  readers:
+    - command: napari-dare2d.get_reader
+      filename_patterns: ["*.tif", "*.tiff"]
+      accepts_directories: false
   widgets:
     - command: napari-dare2d.make_widget
       display_name: DARE2D division detection
