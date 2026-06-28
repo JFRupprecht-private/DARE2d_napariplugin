@@ -54,25 +54,15 @@ DEFAULT_ANNOT_DIR = DATA_DIR / "set_8"
 if str(_REPO) not in sys.path:
     sys.path.insert(0, str(_REPO))
 
-import cv2
-import hydra
 import numpy as np
-from hydra import compose, initialize_config_dir
-from hydra.core.global_hydra import GlobalHydra
-from hydra.core.hydra_config import HydraConfig
-from omegaconf import OmegaConf
 
-from dare2d.datamodule.post_processing.regression2d_pp import convert_values
-from dare2d.evaluation.center_metrics import extract_centers
-from scripts.inference.multistage_detection2d import (  # noqa: E402 (needs sys.path)
-    crop_img_from_center,
-    inference_strategy,
-)
-from scripts.postprocessing.main import (  # noqa: E402
-    aggregate_cluster_pick_signed,
-    cluster_hdbscan,
-    detect_angle_units_and_convert,
-)
+# IMPORTANT: keep this module import-light. The heavy stack — cv2, hydra/omegaconf, the
+# dare2d core (which pulls in TensorFlow via dare2d.evaluation) and the scripts/ helpers — is
+# imported LAZILY inside the functions that use it (_build_model, infer_stack, consensus), NOT
+# here. The napari widgets import this module at construction time only for the path constants
+# + the pure (numpy-only) helpers below; importing the ~11 s TF/hydra stack here would freeze
+# napari for that long on first widget open. Deferred, it loads on the first Run instead, in
+# the worker thread.
 
 __all__ = [
     "build_models",
@@ -167,6 +157,12 @@ def _build_model(experiment: str, weights: str | None, config_dir: str = CONFIG_
     process-wide singleton, so it is cleared around each build to stay
     re-entrant across repeated runs inside a long-lived napari session.
     """
+    import hydra  # deferred (heavy) — see the module-top note on import-light _api
+    from hydra import compose, initialize_config_dir
+    from hydra.core.global_hydra import GlobalHydra
+    from hydra.core.hydra_config import HydraConfig
+    from omegaconf import OmegaConf
+
     GlobalHydra.instance().clear()
     try:
         with initialize_config_dir(version_base=None, config_dir=config_dir):
@@ -218,6 +214,14 @@ def infer_stack(
     ponytail: assumes 8-bit input (cv2.equalizeHist + /255), like the original
     script. Ceiling: 16-bit stacks would need rescaling first.
     """
+    import cv2  # deferred (heavy) — see the module-top note on import-light _api
+    from dare2d.datamodule.post_processing.regression2d_pp import convert_values
+    from dare2d.evaluation.center_metrics import extract_centers
+    from scripts.inference.multistage_detection2d import (
+        crop_img_from_center,
+        inference_strategy,
+    )
+
     stack = np.asarray(stack)
     if stack.ndim != 3:
         raise ValueError(f"expected a (T, Y, X) stack, got shape {stack.shape}")
@@ -321,6 +325,12 @@ def consensus(all_dets, n_frames, eps=10, min_models=6, num_models=8, angle_mode
     drawing, TIFF/CSV writing and temporal dedup, which a napari overlay does
     not need. Reuses the same aggregation primitives so results stay identical.
     """
+    from scripts.postprocessing.main import (  # deferred (heavy); see module-top note
+        aggregate_cluster_pick_signed,
+        cluster_hdbscan,
+        detect_angle_units_and_convert,
+    )
+
     # work on a shallow copy: detect_angle_units_and_convert mutates in place.
     dets = {k: list(v) for k, v in all_dets.items()}
     detect_angle_units_and_convert(dets, mode=angle_mode)
