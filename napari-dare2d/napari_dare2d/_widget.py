@@ -557,6 +557,7 @@ def _retrain_widget_init(widget):
     widget.append(stop)
     _RUN["stop_btn"] = stop
     cb = getattr(widget, "_call_button", None)
+    _RUN["call_button"] = cb               # hidden while a run is active (Stop shows instead)
     if cb is not None:
         cb.tooltip = ("Launch leave-one-out retraining as a subprocess; progress shows in "
                       "the bar and the terminal.")
@@ -690,10 +691,15 @@ def retrain_widget(
 
     bars = _RUN.get("bars", {})
     _stop_btn = _RUN.get("stop_btn")
+    _call_btn = _RUN.get("call_button")
 
-    def _set_stop(visible):
+    def _set_running(running):
+        # while a run is active: show 'Stop retraining', hide 'Start retraining'
+        # (and the reverse once it ends, so you can launch the next run).
         if _stop_btn is not None:
-            _stop_btn.visible = visible
+            _stop_btn.visible = running
+        if _call_btn is not None:
+            _call_btn.visible = not running
 
     def _on_yield(v):
         stage, kind, val, eta = v
@@ -721,7 +727,7 @@ def retrain_widget(
                 bar.visible = True
                 bar.max = 0
                 bar.label = f"{first} stage: starting… (importing backend)"
-        _set_stop(True)
+        _set_running(True)
 
     def _done(_=None):
         _RUN["proc"] = None
@@ -741,6 +747,6 @@ def retrain_widget(
     worker.returned.connect(_done)
     worker.errored.connect(_on_error)
     worker.started.connect(_on_start)
-    worker.finished.connect(lambda: _set_stop(False))
+    worker.finished.connect(lambda: _set_running(False))
     worker.start()
     return worker
