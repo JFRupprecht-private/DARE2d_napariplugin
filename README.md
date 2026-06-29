@@ -28,6 +28,10 @@ interactively.
 > *and* leave-one-out training — same detections as Keras (parity ~1e-7) — and **(2) a napari
 > plugin** (`napari_dare2d/`) with widgets for interactive division detection, ground-truth
 > annotation viewing, and retraining.
+>
+> **Beta in this version:** the **retraining** and **fine-tuning / transfer-learning** workflows
+> (CLI, notebook, and the napari widget) are included as **experimental** — they run end to end, but
+> their results and parameters/API may change in a future version. Inference is the stable path.
 
 > **Citation.** If you use DARE2D, please cite the preprint:
 > Karpinski R., Gros A., Karnat M., Saaheelur Rahaman Q., Vanaret J., Saadaoui M., Tlili S. L.,
@@ -211,6 +215,11 @@ python scripts/postprocessing/main.py \
 
 ## Retraining (leave-one-out)
 
+> ⚠️ **Beta — experimental.** Retraining and fine-tuning (transfer learning) are new and still
+> experimental. They run end to end, but results and the widget/CLI parameters may change between
+> versions, so treat retrained or fine-tuned checkpoints and their settings as provisional. The
+> inference pipeline is the stable path.
+
 Train on a subset of sets and test on the complement, producing
 `checkpoints_set_{n}_all_but_target/best.h5` — the exact layout inference consumes. Retraining can
 be run **three ways**:
@@ -224,7 +233,7 @@ python -m scripts.batch_train.batch_train_eval experiment=segmentation2d batch_t
 **2. Notebook.** Open `notebooks/Run_dare2d_Retraining.ipynb` — it preprocesses each raw set into the
 per-frame layout the generators read, then runs the same leave-one-out training for both stages.
 
-**3. napari plugin.** Launch `napari`, then **Plugins → DARE2D retraining**. Pick the **Test set**
+**3. napari plugin.** Launch `napari`, then **Plugins → DARE2D retraining & fine-tuning (beta)**. Pick the **Test set**
 (held out), optional **Train sets** (blank = the rest), **Model** (both / regression / segmentation)
 and **Backend** (PyTorch GPU, TensorFlow CPU, or TensorFlow WSL GPU), then **Start retraining** — a
 progress bar tracks the epochs and an inline **Stop retraining** button cancels it. Output lands in

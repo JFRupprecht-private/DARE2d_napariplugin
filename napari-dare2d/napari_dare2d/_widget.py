@@ -563,10 +563,63 @@ def _retrain_widget_init(widget):
         cb.tooltip = ("Launch leave-one-out retraining as a subprocess; progress shows in "
                       "the bar and the terminal.")
 
+    # --- Transfer-learning / fine-tune controls -------------------------------------------
+    # The fine-tune knobs live under a collapsed "Advanced parameters" toggle, and the whole
+    # fine-tune UI (base-model picker + the advanced toggle) shows only in fine-tune mode. In
+    # that mode the scratch backend selector is hidden (fine-tune is PyTorch-only) and Model is
+    # restricted to a single stage (a .pt is regression OR segmentation).
+    ft_params = (widget.unfreeze_last, widget.bn_mode, widget.ft_lr, widget.discriminative,
+                 widget.backbone_lr_mult, widget.weight_decay, widget.lr_schedule,
+                 widget.warmup_epochs, widget.grad_clip, widget.batch_size,
+                 widget.augment, widget.augment_strength, widget.patience)
+    ft_toggle = PushButton(text="▸ Advanced parameters")
+    ft_toggle.tooltip = ("Show/hide fine-tuning options: freeze depth, learning rates, schedule, "
+                         "augmentation, early stopping.")
+    widget.insert(list(widget).index(widget.unfreeze_last), ft_toggle)
+
+    def _toggle_ft():
+        show = not ft_params[0].visible
+        for w_ in ft_params:
+            w_.visible = show
+        ft_toggle.text = "▾ Advanced parameters" if show else "▸ Advanced parameters"
+
+    ft_toggle.clicked.connect(_toggle_ft)
+    _ALL_MODELS = ["both", "regression", "segmentation"]
+
+    def _apply_mode(*_):
+        finetune = str(widget.mode.value).startswith("Transfer")
+        widget.backend.visible = not finetune
+        ft_toggle.visible = finetune
+        if list(widget.model.choices) != _ALL_MODELS:    # both/regression/segmentation in both modes
+            widget.model.choices = _ALL_MODELS
+        if not finetune:                                 # collapse + hide all fine-tune controls
+            for w_ in ft_params:
+                w_.visible = False
+            ft_toggle.text = "▸ Advanced parameters"
+            widget.base_reg.visible = False
+            widget.base_seg.visible = False
+        else:                                            # show the base picker(s) for the stage(s)
+            stage = str(widget.model.value)
+            widget.base_reg.visible = stage in ("both", "regression")
+            widget.base_seg.visible = stage in ("both", "segmentation")
+
+    widget.mode.changed.connect(_apply_mode)
+    widget.model.changed.connect(_apply_mode)            # base picker(s) depend on the chosen stage(s)
+    _apply_mode()                                        # initial state = scratch
+
 
 @magic_factory(
     widget_init=_retrain_widget_init,
     call_button="Start retraining",
+    mode={"choices": ["Retrain from scratch", "Transfer learning / fine-tune"], "label": "Mode",
+          "tooltip": "Retrain from scratch (existing) or fine-tune a pretrained .pt checkpoint "
+                     "(PyTorch only)."},
+    base_reg={"mode": "r", "label": "Regression model (.pt)", "filter": "*.pt",
+              "tooltip": "Pretrained REGRESSION .pt to fine-tune (e.g. torch_reg_set_8.pt or "
+                         "regression_checkpoints/.../best.pt). Shown for Model = regression or both."},
+    base_seg={"mode": "r", "label": "Segmentation model (.pt)", "filter": "*.pt",
+              "tooltip": "Pretrained SEGMENTATION .pt to fine-tune (e.g. torch_seg_set_8.pt or "
+                         "segmentation_checkpoints/.../best.pt). Shown for Model = segmentation or both."},
     test_set={"choices": [1, 2, 3, 4, 5, 6, 7, 8], "label": "Test set (held out)",
               "tooltip": "The set held out for validation (leave-one-out); the model "
                          "trains on the others and is tested on this one."},
@@ -589,17 +642,61 @@ def _retrain_widget_init(widget):
     epochs={"tooltip": "Number of training epochs per stage."},
     steps={"tooltip": "Optimizer steps per epoch."},
     crop={"tooltip": "Crop size in pixels that each frame is tiled into for training."},
+    unfreeze_last={"label": "Unfreeze last N blocks",
+                   "tooltip": "Backbone is frozen; unfreeze the last N backbone blocks. "
+                              "Default: 0 (head only)."},
+    bn_mode={"choices": ["frozen", "adapt"], "label": "Frozen-backbone BN",
+             "tooltip": "Normalization of the frozen backbone. 'frozen' (default): BatchNorm "
+                        "running stats fixed (BN .eval()) - a true freeze. 'adapt': BatchNorm "
+                        "re-estimates stats on the new data (weights stay frozen) - for a larger, "
+                        "distribution-shifted fine-tune set."},
+    ft_lr={"label": "Fine-tune LR",
+           "tooltip": "Learning rate for the (unfrozen) head. Default: 1e-4 (lower than scratch)."},
+    discriminative={"label": "Discriminative LR",
+                    "tooltip": "Use a lower LR for the unfrozen backbone than the head. Default: on."},
+    backbone_lr_mult={"label": "Backbone LR x",
+                      "tooltip": "Unfrozen-backbone LR = Fine-tune LR x this. Default: 0.1."},
+    weight_decay={"label": "Weight decay", "tooltip": "AdamW weight decay. Default: 1e-4."},
+    lr_schedule={"choices": ["cosine", "constant"], "label": "LR schedule",
+                 "tooltip": "Linear warmup then cosine decay (default) or constant. Default: cosine."},
+    warmup_epochs={"label": "Warmup epochs",
+                   "tooltip": "Linear LR warmup epochs before the schedule. Default: 1."},
+    grad_clip={"label": "Grad clip (max-norm)",
+               "tooltip": "Gradient max-norm clipping; 0 = off. Default: 1.0."},
+    batch_size={"tooltip": "Mini-batch size (fine-tune). Default: 32."},
+    augment={"label": "Augmentation",
+             "tooltip": "Apply the training-data augmentations. Default: on."},
+    augment_strength={"label": "Augment strength",
+                      "tooltip": "Scales augmentation probabilities (0-1). Default: 1.0."},
+    patience={"label": "Early-stop patience",
+              "tooltip": "Stop if val loss doesn't improve for N epochs; 0 = off. Default: 0."},
 )
 def retrain_widget(
+    mode: str = "Retrain from scratch",
+    model: str = "both",
+    base_reg: Path = Path(),
+    base_seg: Path = Path(),
     test_set: int = 8,
     train_sets: str = "",
-    model: str = "both",
     backend: str = "PyTorch (GPU)",
     raw_dir: Path = _api.DATA_DIR,
     run_name: str = "",
     epochs: int = 50,
     steps: int = 1000,
     crop: int = 256,
+    unfreeze_last: int = 0,
+    bn_mode: str = "frozen",
+    ft_lr: str = "1e-4",
+    discriminative: bool = True,
+    backbone_lr_mult: str = "0.1",
+    weight_decay: str = "1e-4",
+    lr_schedule: str = "cosine",
+    warmup_epochs: int = 1,
+    grad_clip: str = "1.0",
+    batch_size: int = 32,
+    augment: bool = True,
+    augment_strength: str = "1.0",
+    patience: int = 0,
 ):
     """Retrain DARE2D on a subset of sets, testing on the held-out ``test_set``.
 
@@ -609,7 +706,22 @@ def retrain_widget(
     """
     if _RUN["proc"] is not None and _RUN["proc"].poll() is None:
         raise RuntimeError("a retraining is already running (use the Stop button first)")
+    finetune = str(mode).startswith("Transfer")
     exps = _EXP_MAP[model]
+    # each fine-tune stage uses its own base .pt: regression -> base_reg, segmentation -> base_seg
+    # (Model = both runs both stages, each from its own checkpoint).
+    _base_for = {"regression2d": Path(str(base_reg)), "segmentation2d": Path(str(base_seg))}
+    if finetune:                                        # validate up-front: clear message, fail fast
+        for exp in exps:
+            bm = _base_for[exp]
+            stg = "regression" if exp == "regression2d" else "segmentation"
+            if bm.suffix.lower() != ".pt":
+                raise RuntimeError(
+                    f"Fine-tuning the {stg} stage needs a .pt in the '{stg.capitalize()} model "
+                    "(.pt)' field (curated models ship .pt beside .h5; convert your own with "
+                    "dare2d-torch/convert_to_torch.py).")
+            if not bm.exists():
+                raise RuntimeError(f"{stg} base model not found: {bm}")
     rn = run_name.strip() or datetime.date.today().isoformat()
     _RUN["cancel"] = False
 
@@ -619,6 +731,19 @@ def retrain_widget(
                   "--raw-root", str(raw_dir)]
         if train_sets.strip():
             common += ["--train-sets", train_sets.strip()]
+        if finetune:                                   # fine-tune == PyTorch only; per-stage base .pt
+            ft = ["--base-model", str(_base_for[exp]),
+                  "--unfreeze-last", str(unfreeze_last), "--bn-mode", str(bn_mode),
+                  "--ft-lr", str(ft_lr),
+                  "--backbone-lr-mult", str(backbone_lr_mult), "--weight-decay", str(weight_decay),
+                  "--lr-schedule", str(lr_schedule), "--warmup-epochs", str(warmup_epochs),
+                  "--grad-clip", str(grad_clip), "--batch-size", str(batch_size),
+                  "--augment-strength", str(augment_strength), "--patience", str(patience)]
+            if not discriminative:
+                ft += ["--no-discriminative"]
+            if not augment:
+                ft += ["--no-augment"]
+            return [sys.executable, str(_TRAIN_DIR / "torch" / "finetune.py"), *common, *ft]
         if backend.startswith("PyTorch"):
             return [sys.executable, str(_TRAIN_DIR / "torch" / "train.py"), *common]
         if "WSL" in backend:

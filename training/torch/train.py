@@ -121,6 +121,130 @@ def _fmt_eta(seconds: float) -> str:
     return f"{sec}s"
 
 
+def _scale_aug(aug, strength):
+    """Scale every transform's probability in an albumentations Compose by ``strength`` (0..1).
+    Best-effort and never fatal; returns the (mutated) Compose."""
+    try:
+        for t in getattr(aug, "transforms", []):
+            if hasattr(t, "p"):
+                t.p = max(0.0, min(1.0, float(t.p) * strength))
+    except Exception:
+        pass
+    return aug
+
+
+def build_loaders(experiment, kind, train_sets, test_set, *, crop, epochs, steps, batch_size,
+                  seed, raw_root, out_dir, augment=True, aug_strength=1.0):
+    """Preprocess (cached) + build the DARE2D generators via train_split wiring, wrapped as torch
+    DataLoaders. Shared by scratch training and fine-tuning so the crop/target/augmentation logic
+    stays identical. Returns (train_loader, val_loader)."""
+    bt_name = _EXP[experiment][0]
+    print("[phase] preprocessing data (first run only; can take a few minutes)…", flush=True)
+    raw_root = Path(raw_root)
+    prepared_root = PROJECT_ROOT / "data" / "prepared" / f"crop_{crop}"
+    for name in train_sets + [test_set]:
+        _, n = prep.prepare_set(raw_root / name, prepared_root / name, crop_size=crop)
+        print(f"[prep] {name}: {n} samples", flush=True)
+
+    cfg = ts.build_config(experiment, bt_name, prepared_root, out_dir, epochs, steps, batch_size, seed)
+    proc = ts.SingleSplitProcedure(cfg, out_dir, train_sets, test_set)  # builds proc.sets
+    proc.init_datamodule()
+    train_gens = [proc.sets[n] for n in train_sets]
+    if augment:
+        aug = proc.datamodule.get_augmentations()
+        if aug_strength != 1.0:
+            aug = _scale_aug(aug, aug_strength)
+        for g in train_gens:
+            g.set_augmentations(aug)
+    test_gen = proc.sets[test_set]
+
+    train_ds = ConcatDataset([GenDataset(g, kind) for g in train_gens])
+    val_ds = GenDataset(test_gen, kind)
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True,
+                              num_workers=0, drop_last=True)
+    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=0)
+    print(f"[torch-train] train samples={len(train_ds)} val samples={len(val_ds)}")
+    return train_loader, val_loader
+
+
+def train_loop(model, opt, train_loader, val_loader, kind, epochs, steps, ckpt_path, device,
+               *, lr_scheduler=None, patience=None, grad_clip=None, on_train_mode=None):
+    """Cycle the train loader ``steps``/epoch, evaluate on val each epoch, and save the best
+    state_dict to ``ckpt_path`` (never overwriting an existing one). Emits the [phase]/[step]/
+    [epoch] markers the napari widget parses. Optional ``lr_scheduler`` (stepped once per epoch),
+    early-stopping ``patience`` (epochs without val improvement), and ``grad_clip`` (max-norm).
+    ``on_train_mode(model)`` replaces the bare ``model.train()`` re-arm (fine-tuning uses it to hold
+    frozen BatchNorm in eval); None = plain ``model.train()`` (scratch). Called wherever train mode
+    is (re-)armed: once before the loop, and after each ``evaluate()`` (which flips eval->train).
+    Returns the best val loss. Shared by scratch + fine-tune."""
+    ckpt_path.parent.mkdir(parents=True, exist_ok=True)
+    if ckpt_path.exists():
+        raise FileExistsError(f"refusing to overwrite {ckpt_path}")
+    if on_train_mode is not None:
+        on_train_mode(model)
+    else:
+        model.train()
+    best = float("inf")
+    bad = 0
+    it = _cycle(train_loader)
+    total_steps = epochs * steps
+    train_t0 = time.time()
+    last_log = 0.0
+    print(f"[phase] training: {epochs} epochs x {steps} steps on {device}", flush=True)
+    for ep in range(epochs):
+        t0 = time.time()
+        run = 0.0
+        for si in range(steps):
+            x, y = next(it)
+            x = x.to(device)
+            opt.zero_grad()
+            if kind == "reg":
+                y = (y[0].to(device), y[1].to(device))
+                loss = reg_loss(model(x), y)
+            else:
+                y = y.to(device)
+                loss = seg_loss(model(x), y)
+            loss.backward()
+            if grad_clip:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
+            opt.step()
+            run += float(loss)
+            # throttled heartbeat so the widget bar + terminal advance WITHIN an epoch
+            now = time.time()
+            if now - last_log >= 2.0:
+                done = ep * steps + si + 1
+                el = now - train_t0
+                rate = done / el if el > 0 else 0.0
+                eta = (total_steps - done) / rate if rate > 0 else 0.0
+                pct = 100.0 * done / total_steps
+                nfill = int(round(20 * done / total_steps))
+                bar = "#" * nfill + "-" * (20 - nfill)   # ASCII-safe (no cp1252 crash)
+                print(f"[step] {ep+1}/{epochs} {si+1}/{steps} "
+                      f"[{bar}] {pct:.0f}% {rate:.1f} it/s "
+                      f"eta {_fmt_eta(eta)} (this stage)", flush=True)
+                last_log = now
+        if lr_scheduler is not None:
+            lr_scheduler.step()
+        val = evaluate(model, val_loader, kind, device, max_batches=50)
+        if on_train_mode is not None:       # evaluate() re-armed model.train(); re-apply BN policy
+            on_train_mode(model)
+        improved = val < best
+        if improved:
+            best = val
+            bad = 0
+            torch.save(model.state_dict(), ckpt_path)
+        else:
+            bad += 1
+        print(f"[epoch {ep+1}/{epochs}] train_loss={run/steps:.4f} "
+              f"val_loss={val:.4f}{'  *saved' if improved else ''} "
+              f"({time.time()-t0:.1f}s)", flush=True)
+        if patience and bad >= patience:
+            print(f"[epoch {ep+1}/{epochs}] early stop "
+                  f"(no val improvement for {patience} epochs)", flush=True)
+            break
+    return best
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--experiment", choices=list(_EXP), required=True)
@@ -154,87 +278,17 @@ def main():
     print(f"[torch-train] {args.experiment} test={test_set} train={train_sets} "
           f"device={device}\n[torch-train] -> {ckpt_path}")
 
-    # 1) preprocess (cached)
-    print("[phase] preprocessing data (first run only; can take a few minutes)…", flush=True)
-    raw_root = Path(args.raw_root)
-    prepared_root = PROJECT_ROOT / "data" / "prepared" / f"crop_{args.crop}"
-    for name in train_sets + [test_set]:
-        _, n = prep.prepare_set(raw_root / name, prepared_root / name, crop_size=args.crop)
-        print(f"[prep] {name}: {n} samples", flush=True)
+    train_loader, val_loader = build_loaders(
+        args.experiment, kind, train_sets, test_set, crop=args.crop, epochs=args.epochs,
+        steps=args.steps, batch_size=args.batch_size, seed=args.seed,
+        raw_root=args.raw_root, out_dir=out_dir)
 
-    # 2) build DARE2D generators (reuse train_split wiring) + augmentations
-    cfg = ts.build_config(args.experiment, bt_name, prepared_root, out_dir,
-                          args.epochs, args.steps, args.batch_size, args.seed)
-    proc = ts.SingleSplitProcedure(cfg, out_dir, train_sets, test_set)  # builds proc.sets
-    proc.init_datamodule()
-    aug = proc.datamodule.get_augmentations()
-    train_gens = [proc.sets[n] for n in train_sets]
-    for g in train_gens:
-        g.set_augmentations(aug)
-    test_gen = proc.sets[test_set]
-
-    train_ds = ConcatDataset([GenDataset(g, kind) for g in train_gens])
-    val_ds = GenDataset(test_gen, kind)
-    train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True,
-                              num_workers=0, drop_last=True)
-    val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, num_workers=0)
-    print(f"[torch-train] train samples={len(train_ds)} val samples={len(val_ds)}")
-
-    # 3) model + optimizer
     model = (M.Regression2dTorch() if kind == "reg" else M.SegmentationUnetTorch()).to(device)
-    model.train()
     opt = (torch.optim.RMSprop(model.parameters(), lr=1e-4) if kind == "reg"
            else torch.optim.Adam(model.parameters(), lr=1e-4))
 
-    # 4) train loop (steps/epoch caps the pass, cycling the loader like the TF infinite ds)
-    ckpt_path.parent.mkdir(parents=True, exist_ok=True)
-    if ckpt_path.exists():
-        raise FileExistsError(f"refusing to overwrite {ckpt_path}")
-    best = float("inf")
-    it = _cycle(train_loader)
-    total_steps = args.epochs * args.steps
-    train_t0 = time.time()
-    last_log = 0.0
-    print(f"[phase] training: {args.epochs} epochs x {args.steps} steps on {device}", flush=True)
-    for ep in range(args.epochs):
-        t0 = time.time()
-        run = 0.0
-        for si in range(args.steps):
-            x, y = next(it)
-            x = x.to(device)
-            opt.zero_grad()
-            if kind == "reg":
-                y = (y[0].to(device), y[1].to(device))
-                loss = reg_loss(model(x), y)
-            else:
-                y = y.to(device)
-                loss = seg_loss(model(x), y)
-            loss.backward()
-            opt.step()
-            run += float(loss)
-            # throttled heartbeat so the widget bar + terminal advance WITHIN an epoch
-            now = time.time()
-            if now - last_log >= 2.0:
-                done = ep * args.steps + si + 1
-                el = now - train_t0
-                rate = done / el if el > 0 else 0.0
-                eta = (total_steps - done) / rate if rate > 0 else 0.0
-                pct = 100.0 * done / total_steps
-                nfill = int(round(20 * done / total_steps))
-                bar = "#" * nfill + "-" * (20 - nfill)   # ASCII-safe (no cp1252 crash)
-                print(f"[step] {ep+1}/{args.epochs} {si+1}/{args.steps} "
-                      f"[{bar}] {pct:.0f}% {rate:.1f} it/s "
-                      f"eta {_fmt_eta(eta)} (this stage)", flush=True)
-                last_log = now
-        val = evaluate(model, val_loader, kind, device, max_batches=50)
-        improved = val < best
-        if improved:
-            best = val
-            torch.save(model.state_dict(), ckpt_path)
-        print(f"[epoch {ep+1}/{args.epochs}] train_loss={run/args.steps:.4f} "
-              f"val_loss={val:.4f}{'  *saved' if improved else ''} "
-              f"({time.time()-t0:.1f}s)", flush=True)
-
+    best = train_loop(model, opt, train_loader, val_loader, kind,
+                      args.epochs, args.steps, ckpt_path, device)
     print(f"[torch-train] DONE. best val_loss={best:.4f}  checkpoint: {ckpt_path}")
 
 

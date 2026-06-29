@@ -30,7 +30,7 @@ napari-dare2d/
 |---|---|---|
 | **DARE2D division detection** | `_widget.dare2d_widget` | Runs inference on an open Image layer (or a movie you browse to), overlays a **Points** layer (centres) + **Vectors** layer (axes). Picks the **keras**/CPU or **pytorch**/GPU backend, the model set(s), frame range and consensus parameters. After a run it reveals an inline **save results** section and (if the data is missing) a **Download data** button. |
 | **DARE2D annotations viewer** | `_widget.annotations_widget` | Loads ground-truth `division_position*.npy` from a set folder and overlays the paired daughter cells (Points) + pair links (Vectors). |
-| **DARE2D retraining** | `_widget.retrain_widget` | Launches leave-one-out retraining as a subprocess (PyTorch GPU / TF CPU / TF WSL-GPU), with an epoch progress bar, an inline **Stop** button, and a **Download data** button when the dataset is absent. Writes to `models/<run>/…`; never touches the curated `models/demo/<dataset>/`. |
+| **DARE2D retraining & fine-tuning (beta)** | `_widget.retrain_widget` | **Beta/experimental.** Launches leave-one-out retraining (or PyTorch fine-tuning / transfer learning) as a subprocess (PyTorch GPU / TF CPU / TF WSL-GPU), with an epoch progress bar, an inline **Stop** button, and a **Download data** button when the dataset is absent. Writes to `models/<run>/…`; never touches the curated `models/demo/<dataset>/`. |
 
 All heavy work runs in a `thread_worker` so the napari UI stays responsive; retraining runs in a
 killable subprocess.

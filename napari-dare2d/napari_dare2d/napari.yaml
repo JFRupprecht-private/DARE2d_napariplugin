@@ -12,7 +12,7 @@ contributions:
       title: DARE2D annotations viewer
       python_name: napari_dare2d._widget:annotations_widget
     - id: napari-dare2d.retrain_widget
-      title: DARE2D retraining
+      title: DARE2D retraining & fine-tuning (beta)
       python_name: napari_dare2d._widget:retrain_widget
   readers:
     - command: napari-dare2d.get_reader
@@ -24,4 +24,4 @@ contributions:
     - command: napari-dare2d.annotations_widget
       display_name: DARE2D annotations viewer
     - command: napari-dare2d.retrain_widget
-      display_name: DARE2D retraining
+      display_name: DARE2D retraining & fine-tuning (beta)
