@@ -9,7 +9,8 @@ losses / callbacks) for ONE split, overriding only:
     checkpoints_set_<test>_all_but_target/best.h5, with a HARD never-overwrite guard.
 
 DARE2d-main is imported read-only. Raw data is preprocessed once (training/prepare.py) into
-data/prepared/crop_<n>/set_<k>/ before training. models/best/ is never written.
+data/prepared/crop_<n>/set_<k>/ before training. The curated demo checkpoints under
+models/demo/<dataset>/ are never written.
 
 Usage (TF env):
   python training/tf/train_split.py --experiment regression2d --test-set 8 \
@@ -45,7 +46,7 @@ from scripts.batch_train.batch_train_eval import BatchTrainingProcedure  # noqa:
 import prepare as prep  # noqa: E402  (training/prepare.py)
 
 CONFIG_DIR = str(_REPO / "config")
-DEFAULT_RAW_ROOT = PROJECT_ROOT / "data" / "neuroepithelium" / "neuroepithelium"
+DEFAULT_RAW_ROOT = PROJECT_ROOT / "data" / "demo" / "neuroepithelium"
 MODELS_DIR = PROJECT_ROOT / "models"
 
 # experiment -> (batch_training config name, output checkpoint subfolder)
@@ -118,8 +119,8 @@ class SingleSplitProcedure(BatchTrainingProcedure):
 
 
 def resolve_run_dir(run_name, sub, exp_name, ckpt_name="best.h5"):
-    """Return models/<run>/<sub>; auto-suffix run if its checkpoint already exists.
-    Never returns models/best/."""
+    """Return models/<run>/<sub>; auto-suffix run if its checkpoint already exists, so an
+    existing run is never overwritten. The literal run name "best" stays reserved."""
     base = run_name
     i = 1
     while True:

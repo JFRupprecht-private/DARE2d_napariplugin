@@ -30,7 +30,7 @@ napari-dare2d/
 |---|---|---|
 | **DARE2D division detection** | `_widget.dare2d_widget` | Runs inference on an open Image layer (or a movie you browse to), overlays a **Points** layer (centres) + **Vectors** layer (axes). Picks the **keras**/CPU or **pytorch**/GPU backend, the model set(s), frame range and consensus parameters. After a run it reveals an inline **save results** section and (if the data is missing) a **Download data** button. |
 | **DARE2D annotations viewer** | `_widget.annotations_widget` | Loads ground-truth `division_position*.npy` from a set folder and overlays the paired daughter cells (Points) + pair links (Vectors). |
-| **DARE2D retraining** | `_widget.retrain_widget` | Launches leave-one-out retraining as a subprocess (PyTorch GPU / TF CPU / TF WSL-GPU), with an epoch progress bar, an inline **Stop** button, and a **Download data** button when the dataset is absent. Writes to `models/<run>/…`; never touches `models/best/`. |
+| **DARE2D retraining** | `_widget.retrain_widget` | Launches leave-one-out retraining as a subprocess (PyTorch GPU / TF CPU / TF WSL-GPU), with an epoch progress bar, an inline **Stop** button, and a **Download data** button when the dataset is absent. Writes to `models/<run>/…`; never touches the curated `models/demo/<dataset>/`. |
 
 All heavy work runs in a `thread_worker` so the napari UI stays responsive; retraining runs in a
 killable subprocess.
@@ -47,7 +47,7 @@ can be unit-tested headlessly (see `verify_*.py`) and reused outside napari:
   turn `{frame: [{x,y,angle,length}]}` into napari `LayerDataTuple`s.
 - **Annotations** — `annotation_pairs` / `annotations_to_layer_data` read `division_position*.npy`.
 - **Helpers** — `read_stack`, `find_checkpoints`, `parse_sets`, `resolve_frames`, and the default
-  paths `MODELS_DIR`, `DEFAULT_REG_DIR` / `DEFAULT_SEG_DIR` (= `models/best/…`), `DATA_DIR`,
+  paths `MODELS_DIR`, `DEFAULT_REG_DIR` / `DEFAULT_SEG_DIR` (= `models/demo/neuroepithelium/…`), `DATA_DIR`,
   `DEFAULT_ANNOT_DIR` (= set 8's ground truth).
 
 ### Coordinate conventions (locked — don't change without updating `verify_layers.py`)
@@ -74,7 +74,7 @@ step differs:
 
 - `download_dataset(root, …)` — fetches the Zenodo record (checkpoints + dataset + torch weights)
   with stdlib `urllib`/`zipfile` (no extra dependency), caches the zips under `_zenodo_cache/`, and
-  extracts into the project layout (`models/best/…`, `data/neuroepithelium/…`). Extraction **only
+  extracts into the project layout (`models/demo/neuroepithelium/…`, `data/demo/neuroepithelium/…`). Extraction **only
   adds missing files** — it never overwrites, so a populated `models/` (e.g. retrained checkpoints)
   is left intact. A progress bar in the widget is driven off this via a `QTimer`.
 - `save_results(image, points, features, out_dir, …)` — writes per-frame `division_position*.npy`
@@ -102,7 +102,7 @@ python napari-dare2d/verify_api.py      # real: builds set-8 models, runs infere
 ```
 
 `verify_layers.py` asserts the coordinate conventions above and that napari accepts the produced
-layers; `verify_api.py` builds the set-8 models from `models/best/` and runs the full pipeline on the
+layers; `verify_api.py` builds the set-8 models from `models/demo/neuroepithelium/` and runs the full pipeline on the
 set-8 stack (needs the Zenodo checkpoints + data — fetch them via the widget's **Download data**
 button).
 

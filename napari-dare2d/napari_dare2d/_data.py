@@ -17,13 +17,16 @@ import numpy as np
 ZENODO_RECORD = "17442227"
 _API = "https://zenodo.org/api/records/{}"
 
-#: Zenodo zip -> destination subdir (relative to the project root), matching the
-#: layout the plugin/notebooks read (``models/best/...`` and ``data/neuroepithelium/``).
+#: Zenodo zip -> destination subdir (relative to the project root), matching the demo
+#: layout the plugin/notebooks read (``models/demo/neuroepithelium/...`` and
+#: ``data/demo/neuroepithelium/``). The checkpoint zips extract into their full target
+#: dir; ``neuroepithelium.zip`` contains a top-level ``neuroepithelium/`` folder, so it
+#: extracts into ``data/demo`` (yielding ``data/demo/neuroepithelium/``).
 _TARGETS = {
-    "regression_checkpoints.zip":   Path("models") / "best" / "regression_checkpoints",
-    "segmentation_checkpoints.zip": Path("models") / "best" / "segmentation_checkpoints",
-    "torch_weights.zip":            Path("models") / "best",
-    "neuroepithelium.zip":          Path("data") / "neuroepithelium",
+    "regression_checkpoints.zip":   Path("models") / "demo" / "neuroepithelium" / "regression_checkpoints",
+    "segmentation_checkpoints.zip": Path("models") / "demo" / "neuroepithelium" / "segmentation_checkpoints",
+    "torch_weights.zip":            Path("models") / "demo" / "neuroepithelium",
+    "neuroepithelium.zip":          Path("data") / "demo",
 }
 
 
@@ -58,8 +61,8 @@ def _download(url: str, out: Path, total, progress_cb=None) -> None:
 def download_dataset(root, progress_cb=None, log=print) -> Path:
     """Download record 17442227 and extract it into the project layout under ``root``.
 
-    Checkpoints -> ``models/best/{regression,segmentation}_checkpoints``; the
-    neuroepithelium dataset -> ``data/neuroepithelium/``. Zips are cached under
+    Checkpoints -> ``models/demo/neuroepithelium/{regression,segmentation}_checkpoints``;
+    the neuroepithelium dataset -> ``data/demo/neuroepithelium/``. Zips are cached under
     ``root/_zenodo_cache`` and reused if already present at the right size. Extraction
     only ADDS missing files -- existing files are never overwritten, so a populated
     ``models/`` (e.g. retrained checkpoints) is left intact.

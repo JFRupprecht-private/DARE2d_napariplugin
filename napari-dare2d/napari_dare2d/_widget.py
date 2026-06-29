@@ -282,10 +282,11 @@ def _division_widget_init(widget):
              "tooltip": "Folder of regression checkpoints "
                         "(…/checkpoints_set_N_all_but_target/best.h5 or best.pt); point it at "
                         "a retrained run dir to use those weights. "
-                        "Default: models/best/regression_checkpoints."},
+                        "Default: models/demo/neuroepithelium/regression_checkpoints."},
     seg_dir={"label": "Segmentation checkpoints", "mode": "d",
              "tooltip": "Folder of segmentation (centre-detection) checkpoints, same layout "
-                        "as the regression folder. Default: models/best/segmentation_checkpoints."},
+                        "as the regression folder. "
+                        "Default: models/demo/neuroepithelium/segmentation_checkpoints."},
     model_sets={"label": "Model sets (e.g. 1-7, or 8)",
                 "tooltip": "Which trained model set(s) to run: e.g. '8' for one model, '1-7' "
                            "for the 7-model ensemble. Several sets → per-frame consensus. "
@@ -494,7 +495,7 @@ def annotations_widget(
 #   PyTorch (GPU)       : python training/torch/train.py         (native Windows GPU)
 #   TensorFlow (CPU)    : python training/tf/train_split.py      (Windows, CPU)
 #   TensorFlow (WSL GPU): wsl bash training/tf/wsl/run_train.sh  (TF 2.12 GPU in WSL2)
-# Each writes models/<run>/<reg|seg>_checkpoints/...; models/best/ is never touched.
+# Each writes models/<run>/<reg|seg>_checkpoints/...; the curated models/demo/<dataset>/ is never touched.
 
 _TRAIN_DIR = _api.PROJECT_ROOT / "training"
 _RUN = {"proc": None, "cancel": False}            # proc + cancel flag + the inline Stop button
@@ -584,7 +585,7 @@ def _retrain_widget_init(widget):
                         "division_position*.npy ground truth."},
     run_name={"label": "Run name (blank = date)",
               "tooltip": "Output subfolder under models/<run>/; blank = today's date. "
-                         "models/best/ is never overwritten."},
+                         "The curated models/demo/<dataset>/ is never overwritten."},
     epochs={"tooltip": "Number of training epochs per stage."},
     steps={"tooltip": "Optimizer steps per epoch."},
     crop={"tooltip": "Crop size in pixels that each frame is tiled into for training."},

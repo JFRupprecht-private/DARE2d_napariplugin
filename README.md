@@ -61,8 +61,8 @@ annotator/                    # preprocessing (format_gastru) + annotation utili
 napari-dare2d/                # the napari plugin (in-process inference + retraining widgets)
 dare2d-torch/                 # PyTorch GPU port of both models (inference) + ONNX export
 training/                     # leave-one-out retraining: tf/ (CPU + WSL-GPU) + torch/ (GPU) + shared prepare.py
-models/                       # checkpoints (git-ignored): best/ = curated 8-set ensemble; <run>/ = retraining outputs
-data/                         # datasets (git-ignored): neuroepithelium/ raw sets + prepared/ generator cache
+models/                       # checkpoints (git-ignored): demo/<dataset>/ = curated 8-set ensembles; <run>/ = retraining outputs
+data/                         # datasets (git-ignored): demo/<dataset>/ raw sets + prepared/ generator cache
 input/  output/               # CLI inference inputs (you populate) / outputs (git-ignored)
 notebooks/                    # Run_dare2d_Prediction (inference), Run_dare2d_Retraining (retraining),
                               #   Division_detection, data_analysis, train_data_display
@@ -124,13 +124,14 @@ pip install --no-build-isolation --no-deps -e ./napari-dare2d
 Published on **Zenodo** ([record 17442227](https://zenodo.org/records/17442227)):
 `regression_checkpoints.zip`, `segmentation_checkpoints.zip`, `neuroepithelium.zip`, and
 `torch_weights.zip` (pre-converted `best.pt` for the GPU/`pytorch` backend, unzipped next to
-each `best.h5`). The napari plugin reads checkpoints from `models/best/` and the dataset from
-`data/` (kept local, not in git):
+each `best.h5`). Demo datasets are grouped under a `demo/` namespace (neuroepithelium is the first;
+others can be added alongside it). The napari plugin reads checkpoints from
+`models/demo/neuroepithelium/` and the dataset from `data/demo/neuroepithelium/` (kept local, not in git):
 
 ```
-models/best/regression_checkpoints/checkpoints_set_{1..8}_all_but_target/best.h5   (+ best.pt)
-models/best/segmentation_checkpoints/checkpoints_set_{1..8}_all_but_target/best.h5   (+ best.pt)
-data/neuroepithelium/neuroepithelium/set_{1..8}/     # movie .tiff + division_position*.npy
+models/demo/neuroepithelium/regression_checkpoints/checkpoints_set_{1..8}_all_but_target/best.h5   (+ best.pt)
+models/demo/neuroepithelium/segmentation_checkpoints/checkpoints_set_{1..8}_all_but_target/best.h5   (+ best.pt)
+data/demo/neuroepithelium/set_{1..8}/     # movie .tiff + division_position*.npy
 ```
 
 The easiest route is to click **DARE2D download data** in the plugin (Plugins → DARE2D), which
@@ -173,7 +174,7 @@ generates consensus detections, and plots them.
 
 **3. napari plugin.** Launch `napari`, then **Plugins → DARE2D division detection**. Load a `.tif`
 stack, choose the **Inference backend** (`keras`/CPU or `pytorch`/GPU); the **Regression /
-Segmentation checkpoint** fields default to `models/best/…` (or point them at a retrained run dir),
+Segmentation checkpoint** fields default to `models/demo/neuroepithelium/…` (or point them at a retrained run dir),
 set the model sets / frame range, and **Run** — results appear as a Points layer (centers) and a
 Vectors layer (axes). Then **DARE2D save results** exports them to disk — per-frame
 `division_position*.npy`, a `*_summary.csv`, and an overlay `*_result.tiff` movie.
@@ -227,7 +228,7 @@ per-frame layout the generators read, then runs the same leave-one-out training 
 (held out), optional **Train sets** (blank = the rest), **Model** (both / regression / segmentation)
 and **Backend** (PyTorch GPU, TensorFlow CPU, or TensorFlow WSL GPU), then **Start retraining** — a
 progress bar tracks the epochs and an inline **Stop retraining** button cancels it. Output lands in
-`models/<run>/…` (dated; `models/best/` is never overwritten). If the dataset isn't present yet, a
+`models/<run>/…` (dated; the curated `models/demo/<dataset>/` is never overwritten). If the dataset isn't present yet, a
 **Download data** button appears in the widget first.
 
 The backends live in `training/` (native-Windows TF is CPU-only): `tf/` (a WSL2 TF-GPU path +
@@ -253,7 +254,7 @@ python napari-dare2d/verify_api.py      # real: builds set-8 models, runs infere
 
 **Missing checkpoints / "checkpoint missing" errors.** Ensure all 8 sets are present with a
 `best.h5` (and `best.pt` for the `pytorch` backend) under the folders the tool expects: the napari
-plugin defaults to `models/best/{regression,segmentation}_checkpoints/` (the **Download data**
+plugin defaults to `models/demo/neuroepithelium/{regression,segmentation}_checkpoints/` (the **Download data**
 button fills these), while `scripts/all_model_inference.py` reads `regression_checkpoints/` /
 `segmentation_checkpoints/` under its `BASE_DIR` — set that to your project root.
 

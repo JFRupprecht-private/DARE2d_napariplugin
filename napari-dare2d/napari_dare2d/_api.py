@@ -37,15 +37,16 @@ _HERE = Path(__file__).resolve().parent
 PROJECT_ROOT = _HERE.parents[1]
 _REPO = PROJECT_ROOT
 CONFIG_DIR = str(_REPO / "config")
-# Curated ("best") checkpoints live under models/best/ (read-only; retraining writes
-# new runs to sibling models/<run>/ folders, never here -- see RETRAINING_PLAN.md).
+# Curated demo checkpoints live under models/demo/<dataset>/ (read-only; retraining
+# writes new runs to sibling models/<run>/ folders, never here). neuroepithelium is the
+# first demo dataset; others can be added under models/demo/ alongside it.
 MODELS_DIR = PROJECT_ROOT / "models"
-DEFAULT_REG_DIR = MODELS_DIR / "best" / "regression_checkpoints"
-DEFAULT_SEG_DIR = MODELS_DIR / "best" / "segmentation_checkpoints"
+DEFAULT_REG_DIR = MODELS_DIR / "demo" / "neuroepithelium" / "regression_checkpoints"
+DEFAULT_SEG_DIR = MODELS_DIR / "demo" / "neuroepithelium" / "segmentation_checkpoints"
 # Dataset root produced by the "Download DARE2D data" button (and consumed by the
-# retraining widget): data/neuroepithelium/neuroepithelium/set_{1..8}/, each holding
+# retraining widget): data/demo/neuroepithelium/set_{1..8}/, each holding
 # the movie .tiff + ground-truth division_position*.npy.
-DATA_DIR = PROJECT_ROOT / "data" / "neuroepithelium" / "neuroepithelium"
+DATA_DIR = PROJECT_ROOT / "data" / "demo" / "neuroepithelium"
 # Annotations viewer defaults to set 8's ground truth, in the downloaded layout.
 DEFAULT_ANNOT_DIR = DATA_DIR / "set_8"
 

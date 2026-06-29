@@ -8,8 +8,8 @@ the model + training loop are torch. Runs in the TF env (has both TF and torch+c
 no WSL needed. DARE2d-main is read-only.
 
 Output: models/<run>/<reg|seg>_checkpoints/checkpoints_set_<test>_all_but_target/best.pt
-(directly loadable by the torch inference backend). HARD never-overwrite; models/best/
-is never written.
+(directly loadable by the torch inference backend). HARD never-overwrite; the curated demo
+checkpoints under models/demo/<dataset>/ are never written.
 
 Usage:
   python training/torch/train.py --experiment regression2d --test-set 8 --run-name 2026-06-20
