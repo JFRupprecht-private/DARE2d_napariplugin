@@ -265,6 +265,16 @@ plus the editable packages (`pip install -e .` and the plugin). There is no bare
 backend explicitly (`pip install "napari[all]"`), then reinstall the plugin with
 `--no-deps --no-build-isolation` so the numpy pin isn't disturbed.
 
+**napari closes/crashes spuriously (often after a flood of `Unable to open monitor interface to
+\\.\DISPLAY1: ... 0xe0000225` warnings).** This is a Windows display / OpenGL-context problem, not a
+DARE2D error: Qt cannot find the physical monitor (`0xE0000225` = `SPAPI_E_NO_SUCH_DEVINST`), which
+is typical of Remote Desktop, virtual displays, or a monitor that sleeps/disconnects — and napari's
+vispy OpenGL canvas dies when the GL context is lost, taking the window down with no Python
+traceback. Force software rendering before launching napari: set `QT_OPENGL=software` and
+`LIBGL_ALWAYS_SOFTWARE=1` (or persist them in the env with
+`conda env config vars set QT_OPENGL=software`). Running on the physical console instead of RDP,
+updating the GPU driver, and disabling monitor sleep during use also remove the trigger.
+
 **`pytorch` backend unavailable.** Torch isn't installed, or its CUDA build doesn't match your
 toolkit — install `requirements-torch.txt` (swap `cu124` for your CUDA version). The `.pt` weights
 must sit next to each `best.h5`; the Download button ships them.
