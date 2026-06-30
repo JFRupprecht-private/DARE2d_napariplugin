@@ -24,7 +24,7 @@ from pathlib import Path
 import napari
 import numpy as np
 from magicgui import magic_factory
-from magicgui.widgets import CheckBox, FileEdit, ProgressBar, PushButton
+from magicgui.widgets import CheckBox, FileEdit, Label, ProgressBar, PushButton
 from napari.qt.threading import thread_worker
 from napari.utils import notifications
 
@@ -532,6 +532,12 @@ def _retrain_widget_init(widget):
     """Add a 'Download data' button (when the full Zenodo data is incomplete) and a 'Stop
     retraining' button (shown only while a run is active). The WSL-GPU backend shells out to
     ``wsl`` and is Windows-only, so it is hidden on other platforms."""
+    # Steer users toward the notebooks, which are the recommended path for both regimes.
+    note = Label(value="The preferred options for retraining and fine-tuning are the "
+                       "corresponding notebooks available in the notebooks folder.")
+    note.tooltip = ("See notebooks/Run_dare2d_Retraining.ipynb and "
+                    "notebooks/Run_dare2d_Finetune.ipynb.")
+    widget.insert(0, note)
     _add_download_section(widget, _data_complete)
     if sys.platform != "win32":
         widget.backend.choices = [c for c in widget.backend.choices if "WSL" not in c]
