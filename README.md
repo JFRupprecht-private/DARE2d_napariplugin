@@ -22,6 +22,12 @@ Robust detection uses an **8-model ensemble + consensus**. This repository conta
 faster **PyTorch** version, together with a **napari plugin** (`napari_dare2d`) that runs it
 interactively.
 
+<div align="center">
+
+![The DARE2D division-detection widget in napari: detected division centres (red Points) and axes (cyan Vectors) overlaid on a 2D cell movie, with the detection widget docked at the right.](napari-dare2d/DARE2Dnapari.png)
+
+</div>
+
 > **Version 2.** This is **DARE2D v2**, building on the original
 > [v1 release](https://github.com/JFRupprecht-OM/DARE2d) (TensorFlow/Keras only). The two
 > headline additions in v2 are **(1) a PyTorch (GPU) backend** (`dare2d-torch/`) for inference
