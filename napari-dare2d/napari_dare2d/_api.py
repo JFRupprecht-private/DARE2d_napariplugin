@@ -114,6 +114,38 @@ def parse_sets(spec, available=range(1, 9)):
     return sets
 
 
+def _sets_in_dir(d, ckpt_name):
+    """Set numbers of ``<d>/checkpoints_set_{n}_all_but_target/<ckpt_name>`` that exist."""
+    import re
+    d = Path(d)
+    found = set()
+    for sub in d.glob("checkpoints_set_*_all_but_target"):
+        m = re.fullmatch(r"checkpoints_set_(\d+)_all_but_target", sub.name)
+        if m and (sub / ckpt_name).exists():
+            found.add(int(m.group(1)))
+    return found
+
+
+def discover_sets(reg_dir, seg_dir, backend="pytorch"):
+    """Auto-detect the model sets present in the selected checkpoint folders.
+
+    Used when the user leaves the model-set field blank: scan ``reg_dir`` and ``seg_dir``
+    for ``checkpoints_set_{n}_all_but_target`` folders holding the right checkpoint file
+    (``best.pt`` for pytorch, ``best.h5`` for keras) and return the sorted set numbers
+    present in BOTH stages. Raises ValueError (with the paths) if none are found.
+    """
+    ckpt = "best.pt" if backend == "pytorch" else "best.h5"
+    common = sorted(_sets_in_dir(reg_dir, ckpt) & _sets_in_dir(seg_dir, ckpt))
+    if not common:
+        raise ValueError(
+            f"no model sets found automatically: looked for "
+            f"checkpoints_set_*_all_but_target/{ckpt} under both\n  {reg_dir}\n  {seg_dir}\n"
+            f"Type a set number (e.g. 8) or range (1-7), or point the checkpoint folders at "
+            f"a run dir that contains them (or fetch the weights via 'Download DARE2D data')."
+        )
+    return common
+
+
 def find_checkpoints(reg_dir, seg_dir, sets):
     """Resolve ``best.h5`` paths for the given model ``sets``.
 

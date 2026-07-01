@@ -31,13 +31,16 @@ from napari.utils import notifications
 from . import _api
 
 
-def _pytorch_builder(sets, reg_dir, seg_dir):
+def _pytorch_builder(sets, reg_dir, seg_dir, device=None):
     """Return ``build(i) -> (reg, seg)`` torch models, or raise a clear error.
 
     Loads ``best.pt`` from the SAME checkpoint dirs as the Keras backend
     (``<dir>/checkpoints_set_{n}_all_but_target/best.pt``), so a retrained run dir works
     with no rename. The torch port lives in the sibling ``dare2d-torch/`` folder; add it
     to sys.path lazily, inside the worker, so selecting Keras never imports torch.
+
+    ``device`` picks where inference runs: ``None``/"auto" -> CUDA if available else CPU;
+    "cpu" -> force CPU; "cuda" -> force GPU (errors clearly if no CUDA device is present).
     """
     dt = _api.PROJECT_ROOT / "dare2d-torch"
     if str(dt) not in sys.path:
@@ -49,6 +52,13 @@ def _pytorch_builder(sets, reg_dir, seg_dir):
             f"PyTorch backend unavailable: {e}. Install torch into this env "
             f"(see requirements-torch.txt)."
         ) from e
+    if device in (None, "auto"):
+        device = tb.default_device()                 # CUDA if available, else CPU
+    elif device == "cuda" and not tb.torch.cuda.is_available():
+        raise RuntimeError(
+            "GPU inference requested but no CUDA device is available in this env. "
+            "Set the device to 'cpu' (or 'auto'), or install a CUDA-enabled torch."
+        )
     try:
         reg_pts, seg_pts = tb.find_torch_checkpoints(reg_dir, seg_dir, sets)
     except FileNotFoundError as e:
@@ -57,8 +67,8 @@ def _pytorch_builder(sets, reg_dir, seg_dir):
             f"DARE2D data' (ships best.pt next to best.h5 in the checkpoint folders); "
             f"devs regenerate with dare2d-torch/convert_to_torch.py."
         ) from e
-    return lambda i: (tb.load_torch_regression(reg_pts[i]),
-                      tb.load_torch_segmentation(seg_pts[i]))
+    return lambda i: (tb.load_torch_regression(reg_pts[i], device=device),
+                      tb.load_torch_segmentation(seg_pts[i], device=device))
 
 
 def _checkpoints_present():
@@ -203,13 +213,14 @@ def _add_advanced_section(widget):
     """Group the fine-tuning controls under an 'Advanced parameters' toggle. magicgui has no
     native collapsible, so a PushButton flips the controls' .visible (collapsed by default;
     click to expand, click again to collapse)."""
-    advanced = (widget.seg_threshold, widget.eps, widget.min_models,
+    advanced = (widget.device, widget.seg_threshold, widget.eps, widget.min_models,
                 widget.angle_mode, widget.min_cluster_size, widget.min_samples)
     toggle = PushButton(text="▸ Advanced parameters")
-    toggle.tooltip = "Show/hide segmentation threshold and consensus tuning (eps, min models)."
+    toggle.tooltip = ("Show/hide compute device (CPU/GPU), segmentation threshold and "
+                      "consensus tuning (eps, min models).")
     for w_ in advanced:
         w_.visible = False                                  # collapsed by default
-    widget.insert(list(widget).index(widget.seg_threshold), toggle)  # toggle sits above them
+    widget.insert(list(widget).index(widget.device), toggle)  # toggle sits above them
 
     def _toggle():
         show = not advanced[0].visible
@@ -290,12 +301,17 @@ def _division_widget_init(widget):
     model_sets={"label": "Model sets (e.g. 1-7, or 8)",
                 "tooltip": "Which trained model set(s) to run: e.g. '8' for one model, '1-7' "
                            "for the 7-model ensemble. Several sets → per-frame consensus. "
-                           "Default: 8."},
+                           "Leave blank (no number) to auto-detect the set(s) present in the "
+                           "selected checkpoint folders. Default: 8."},
     frame_start={"label": "First frame",
                  "tooltip": "First frame to process (0-based). Default: 0."},
     frame_end={"label": "Last frame (-1 = end)",
                "tooltip": "Last frame to process (inclusive); -1 means the final frame. "
                           "Default: -1."},
+    device={"choices": ["auto", "gpu", "cpu"], "label": "Compute device",
+            "tooltip": "Where PyTorch inference runs (ignored by the keras backend, which is "
+                       "TensorFlow-on-CPU): auto = GPU if a CUDA device is available else CPU; "
+                       "gpu = force CUDA (errors if none); cpu = force CPU. Default: auto."},
     seg_threshold={"label": "Seg. threshold", "min": 0.0, "max": 1.0, "step": 0.05,
                    "tooltip": "Probability cutoff on the U-Net segmentation map (0–1); lower "
                               "= more / smaller detections. Default: 0.5."},
@@ -327,6 +343,7 @@ def dare2d_widget(
     model_sets: str = "8",
     frame_start: int = 0,
     frame_end: int = -1,
+    device: str = "auto",
     seg_threshold: float = 0.5,
     eps: float = 10.0,
     min_models: int = 6,
@@ -367,7 +384,12 @@ def dare2d_widget(
         raise ValueError(f"expected a (T, Y, X) stack, got shape {stack.shape}")
 
     # Resolve inputs eagerly so bad paths/specs error before the worker starts.
-    sets = _api.parse_sets(model_sets)
+    # A blank / number-free field means "auto": discover the sets present in the
+    # selected checkpoint folders instead of requiring an explicit number/range.
+    if any(ch.isdigit() for ch in str(model_sets)):
+        sets = _api.parse_sets(model_sets)
+    else:
+        sets = _api.discover_sets(reg_dir, seg_dir, backend=backend)
     frames = _api.resolve_frames(stack.shape[0], frame_start, frame_end)
     n_frames = stack.shape[0]
     base_name = image.name
@@ -379,7 +401,8 @@ def dare2d_widget(
     @thread_worker
     def run():
         if backend == "pytorch":
-            build = _pytorch_builder(sets, reg_dir, seg_dir)
+            torch_device = {"gpu": "cuda", "cpu": "cpu"}.get(device, "auto")
+            build = _pytorch_builder(sets, reg_dir, seg_dir, device=torch_device)
         else:
             build = lambda i: _api.build_models(reg_ckpts[i], seg_ckpts[i])  # noqa: E731
 
