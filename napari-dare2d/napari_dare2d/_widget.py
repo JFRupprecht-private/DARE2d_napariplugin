@@ -393,6 +393,8 @@ def dare2d_widget(
     frames = _api.resolve_frames(stack.shape[0], frame_start, frame_end)
     n_frames = stack.shape[0]
     base_name = image.name
+    # Tag the output layers with the run's date+time so successive runs are self-identifying.
+    run_stamp = datetime.datetime.now().strftime("%d/%m/%y %H:%M")
     # Keras needs the .h5 checkpoints; the torch backend loads .pt by set number.
     reg_ckpts = seg_ckpts = None
     if backend == "keras":
@@ -420,7 +422,7 @@ def dare2d_widget(
                                                   threshold=seg_threshold))
                 yield (k + 1, len(frames))
             return _api.to_layer_data(per_frame, frame_base=0,
-                                      name=f"{base_name} DARE2D ({backend})")
+                                      name=f"{base_name} DARE2D ({backend}) {run_stamp}")
 
         # Ensemble: per-set detections -> consensus. Same primitives as
         # _api.run_ensemble, inlined so we can yield per-model progress.
@@ -442,7 +444,7 @@ def dare2d_widget(
             min_cluster_size=min_cluster_size, min_samples=min_samples,
         )
         return _api.to_layer_data(cons, frame_base=1,
-                                  name=f"{base_name} DARE2D consensus ({backend})")
+                                  name=f"{base_name} DARE2D consensus ({backend}) {run_stamp}")
 
     def _on_yield(v):
         done, total = v
