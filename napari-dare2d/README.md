@@ -1,15 +1,19 @@
 # `napari-dare2d/` — the DARE2D napari plugin
 
-This folder is the **napari plugin** (`napari_dare2d`) that runs DARE2D interactively: load a movie,
-detect divisions, overlay the centres + axes, inspect ground-truth annotations, and even launch
-retraining — all from the napari GUI. It is a thin, in-process layer over the rest of the repo: it
-**reuses** the core `dare2d/` (TF/Keras) and `dare2d-torch/` (PyTorch) code rather than
-reimplementing inference, so napari results are identical to the CLI/notebook.
+In-process napari plugin for DARE2D: detect cell divisions in a 2D `(T, Y, X)` movie and overlay
+each division's centre and axis, inspect ground-truth annotations, and launch retraining /
+fine-tuning — all from the napari GUI. It is a thin layer over the core `dare2d/` (TF/Keras) and
+`dare2d-torch/` (PyTorch) code, reusing their inference and consensus rather than reimplementing
+them, so the results match the CLI and notebooks.
 
-It is a separate installable package (`pip install -e ./napari-dare2d`) discovered by napari through
-the **npe2 manifest** (`napari.yaml`).
+![The DARE2D division-detection widget in napari: detected division centres (red Points) and axes
+(cyan Vectors) overlaid on a 2D cell movie, with the detection widget docked at the right.](DARE2Dnapari.png)
 
-## Folder map
+The plugin is a separate installable package (`pip install -e ./napari-dare2d`) discovered by napari
+through the **npe2 manifest** (`napari.yaml`).
+
+<details>
+<summary><b>Folder map</b></summary>
 
 ```
 napari-dare2d/
@@ -17,28 +21,29 @@ napari-dare2d/
 ├── napari_dare2d/
 │   ├── __init__.py                 # import-light; sets KMP_DUPLICATE_LIB_OK so TF+Torch coexist
 │   ├── napari.yaml                 # npe2 manifest: registers the 3 widgets below
-│   ├── _api.py                     # napari-free in-process API over the DARE2D pipeline (the engine)
+│   ├── _api.py                     # napari-free in-process API over the DARE2D pipeline
 │   ├── _widget.py                  # the magicgui dock widgets (the GUI)
 │   └── _data.py                    # Zenodo download + "save results" (stdlib-only)
 ├── verify_layers.py                # fast check: geometry + napari layer mapping (no models)
 └── verify_api.py                   # real check: builds set-8 models, runs inference + consensus
 ```
+</details>
 
 ## The three widgets (registered in `napari.yaml`)
 
 | Widget (Plugins → DARE2D …) | Function | What it does |
 |---|---|---|
-| **DARE2D division detection** | `_widget.dare2d_widget` | Runs inference on an open Image layer (or a movie you browse to), overlays a **Points** layer (centres) + **Vectors** layer (axes). Picks the **keras**/CPU or **pytorch**/GPU backend, the model set(s), frame range and consensus parameters. After a run it reveals an inline **save results** section and (if the data is missing) a **Download data** button. |
+| **DARE2D division detection** | `_widget.dare2d_widget` | Runs inference on an open Image layer (or a movie you browse to), overlaying a **Points** layer (centres) + **Vectors** layer (axes). Selects the **keras**/CPU or **pytorch**/GPU backend, the model set(s), frame range, and consensus parameters. After a run it reveals an inline **save results** section and, if the data is missing, a **Download data** button. |
 | **DARE2D annotations viewer** | `_widget.annotations_widget` | Loads ground-truth `division_position*.npy` from a set folder and overlays the paired daughter cells (Points) + pair links (Vectors). |
-| **DARE2D retraining & fine-tuning (beta)** | `_widget.retrain_widget` | **Beta/experimental.** Launches leave-one-out retraining (or PyTorch fine-tuning / transfer learning) as a subprocess (PyTorch GPU / TF CPU / TF WSL-GPU), with an epoch progress bar, an inline **Stop** button, and a **Download data** button when the dataset is absent. Writes to `models/<run>/…`; never touches the curated `models/demo/<dataset>/`. |
+| **DARE2D retraining & fine-tuning (beta)** | `_widget.retrain_widget` | **Beta / experimental.** Launches leave-one-out retraining (or PyTorch fine-tuning / transfer learning) as a subprocess (PyTorch GPU / TF CPU / TF WSL-GPU), with an epoch progress bar, an inline **Stop** button, and a **Download data** button when the dataset is absent. Writes to `models/<run>/…`; never touches the curated `models/demo/<dataset>/`. |
 
-All heavy work runs in a `thread_worker` so the napari UI stays responsive; retraining runs in a
-killable subprocess.
+Inference runs in a `thread_worker` to keep the napari UI responsive; retraining runs in a killable
+subprocess.
 
-## `_api.py` — the engine (napari-free, headless-testable)
+## `_api.py` — inference API (napari-free, headless-testable)
 
-Pure functions that wrap the repo's own inference/consensus code, with no Qt/napari import, so they
-can be unit-tested headlessly (see `verify_*.py`) and reused outside napari:
+Pure functions that wrap the repository's own inference and consensus code, with no Qt/napari import,
+so they can be unit-tested headlessly (see `verify_*.py`) and reused outside napari:
 
 - **Model building / inference** — `build_models` (Hydra-instantiate the two TF models from
   `best.h5`), `infer_stack` (two-stage detection over a `(T,Y,X)` stack), `run_ensemble`
@@ -84,8 +89,8 @@ step differs:
 ## Install & packaging
 
 `pyproject.toml` declares **no dependencies on purpose**. The plugin runs inside the carefully
-version-pinned env (`napari-env-for-DARE2D`, numpy `1.23.5`); letting `pip` re-resolve deps here
-would pull a newer numpy and break TensorFlow 2.12. Install it without touching the pins:
+version-pinned env (`napari-env-for-DARE2D`, numpy `1.23.5`); letting `pip` re-resolve dependencies
+here would pull a newer numpy and break TensorFlow 2.12. Install it without touching the pins:
 
 ```bash
 pip install --no-build-isolation --no-deps -e ./napari-dare2d
@@ -108,3 +113,45 @@ button).
 
 See the repository [`README.md`](../README.md) for the end-to-end install, inference and retraining
 walkthroughs, and [`../dare2d/`](../dare2d/) for the core package this plugin wraps.
+
+## Authors
+
+Romain Karpinski, Alice Gros, Marc Karnat, Qazi Saaheelur Rahaman, Jules Vanaret, Mehdi Saadaoui,
+Sham L. Tlili, and Jean-François Rupprecht.
+
+Aix Marseille Univ, Inserm U1067, CNRS, LAI (UMR 7333), Laboratoire Adhésion Inflammation, Turing
+Centre for Living Systems, Marseille, France.
+
+Maintainer: Jean-François Rupprecht — <rupprecht.jf@gmail.com>.
+
+## Citation
+
+Please cite the references relevant to your use:
+
+- **Method paper (preprint).** Karpinski R., Gros A., Karnat M., Saaheelur Rahaman Q., Vanaret J.,
+  Saadaoui M., Tlili S., Rupprecht J.-F. (2026). *DARE: Division Axis and Region Estimation from
+  2D and 3D Time-Lapse Images.* bioRxiv. DOI `10.1101/2024.02.05.578987`.
+- **Software, data & pretrained models (Zenodo archive).** Record **17442227** —
+  DOI `10.5281/zenodo.17442227` (<https://doi.org/10.5281/zenodo.17442227>): the code release,
+  model checkpoints, and the neuroepithelium dataset.
+
+BibTeX for the paper:
+
+```bibtex
+@article{Karpinski2024.02.05.578987,
+  author       = {Karpinski, Romain and Gros, Alice and Karnat, Marc and Saaheelur Rahaman, Qazi and
+                  Vanaret, Jules and Saadaoui, Mehdi and Tlili, Sham and Rupprecht, Jean-Fran{\c c}ois},
+  title        = {DARE: Division Axis and Region Estimation from 2D and 3D Time-Lapse Images},
+  elocation-id = {2024.02.05.578987},
+  year         = {2026},
+  doi          = {10.1101/2024.02.05.578987},
+  publisher    = {Cold Spring Harbor Laboratory},
+  journal      = {bioRxiv},
+  url          = {https://www.biorxiv.org/content/early/2026/03/27/2024.02.05.578987}
+}
+```
+
+## License & acknowledgements
+
+MIT — see [`LICENSE`](../LICENSE). This work was granted access to the HPC resources of IDRIS under
+the allocation AD010314339 made by GENCI.
