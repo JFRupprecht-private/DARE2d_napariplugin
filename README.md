@@ -12,7 +12,7 @@
 
 ---
 
-**DARE2D** detects cell divisions in 2D time-lapse microscopy and estimates each division's
+**DARE2D** detects divisions in 2D time-lapse microscopy and estimates each division's
 **center**, **orientation**, and **axis length**, in two stages:
 
 1. **Segmentation (center detection)** — a U-Net that localises division centers.
