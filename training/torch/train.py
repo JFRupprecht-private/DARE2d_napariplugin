@@ -18,6 +18,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import copy
 import os
 import sys
 import time
@@ -38,7 +39,7 @@ for p in (str(_HERE.parent), str(_HERE.parent / "tf"), str(PROJECT_ROOT / "dare2
 import numpy as np  # noqa: E402
 import torch  # noqa: E402
 import torch.nn.functional as F  # noqa: E402
-from torch.utils.data import ConcatDataset, DataLoader, Dataset  # noqa: E402
+from torch.utils.data import ConcatDataset, DataLoader, Dataset, Subset  # noqa: E402
 
 import prepare as prep  # noqa: E402
 import train_split as ts  # noqa: E402  (reuse config build + generator wiring + run resolver)
@@ -133,11 +134,40 @@ def _scale_aug(aug, strength):
     return aug
 
 
+def _per_set_val_split(lengths, val_fraction, seed):
+    """Seeded, per-set, sample-level train/val index partition. Returns ``(train_idx_lists,
+    val_idx_lists)`` aligned with ``lengths``.
+
+    Guarantees **>=1 val sample per NON-EMPTY set** -- ``n_val = min(n, max(1, round(n*val_fraction)))``
+    -- so small custom datasets do not round every set to zero and yield an empty val split; empty
+    sets contribute nothing. Deterministic in ``seed`` (a single ``np.random.default_rng`` consumed
+    per set in order, so the RNG stream matches the previous inline split for the common large-set
+    case)."""
+    rng = np.random.default_rng(seed)
+    train_lists, val_lists = [], []
+    for n in lengths:
+        if n <= 0:
+            train_lists.append([])
+            val_lists.append([])
+            continue
+        perm = rng.permutation(n)
+        n_val = min(n, max(1, int(round(n * val_fraction))))
+        val_lists.append(perm[:n_val].tolist())
+        train_lists.append(perm[n_val:].tolist())
+    return train_lists, val_lists
+
+
 def build_loaders(experiment, kind, train_sets, test_set, *, crop, epochs, steps, batch_size,
-                  seed, raw_root, out_dir, augment=True, aug_strength=1.0):
+                  seed, raw_root, out_dir, augment=True, aug_strength=1.0, val_fraction=0.0):
     """Preprocess (cached) + build the DARE2D generators via train_split wiring, wrapped as torch
     DataLoaders. Shared by scratch training and fine-tuning so the crop/target/augmentation logic
-    stays identical. Returns (train_loader, val_loader)."""
+    stays identical. Always returns a 3-tuple ``(train_loader, val_loader, test_loader)``:
+
+      * ``val_fraction == 0`` (scratch, default): legacy behaviour -- ``val_loader`` is the held-out
+        ``test_set`` and ``test_loader`` is ``None``.
+      * ``val_fraction > 0`` (fine-tune): carve a seeded, UN-AUGMENTED validation split from the
+        TRAIN pool (per-set, sample-level) for checkpoint selection / early-stopping, and expose the
+        held-out ``test_set`` separately as ``test_loader`` for a one-shot final evaluation."""
     bt_name = _EXP[experiment][0]
     print("[phase] preprocessing data (first run only; can take a few minutes)…", flush=True)
     raw_root = Path(raw_root)
@@ -158,13 +188,54 @@ def build_loaders(experiment, kind, train_sets, test_set, *, crop, epochs, steps
             g.set_augmentations(aug)
     test_gen = proc.sets[test_set]
 
+    if val_fraction and val_fraction > 0.0:
+        # Fine-tuning: carve a seeded, UN-AUGMENTED validation split from the TRAIN pool so the
+        # selected checkpoint is not measured on the held-out test set (nor on augmented data).
+        # Split each set at the sample level; the val view is a shallow copy of the generator with
+        # augmentation disabled -- it shares the precomputed crops/images/masks by reference (cheap),
+        # so index i means the same underlying sample in both views.
+        train_lists, val_lists = _per_set_val_split([len(g) for g in train_gens], val_fraction, seed)
+        train_subsets, val_subsets = [], []
+        for g, train_idx, val_idx in zip(train_gens, train_lists, val_lists):
+            g_val = copy.copy(g)
+            g_val.set_augmentations(None)          # clean val (regression); seg still pipeline-crops
+            train_subsets.append(Subset(GenDataset(g, kind), train_idx))
+            val_subsets.append(Subset(GenDataset(g_val, kind), val_idx))
+        train_ds = ConcatDataset(train_subsets)
+        val_ds = ConcatDataset(val_subsets)
+        test_ds = GenDataset(test_gen, kind)
+        if len(train_ds) < batch_size:
+            raise ValueError(
+                f"training split has {len(train_ds)} samples < batch_size {batch_size} "
+                f"(val_fraction={val_fraction} held {len(val_ds)} out for validation). "
+                f"Reduce --batch-size or add training data.")
+        if len(val_ds) < 1:
+            raise ValueError(
+                f"validation split is empty: the train pool is too small for "
+                f"val_fraction={val_fraction}. Reduce --val-fraction or add training data.")
+        train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True,
+                                  num_workers=0, drop_last=True)
+        val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=0)
+        test_loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False, num_workers=0)
+        print(f"[torch-train] train samples={len(train_ds)} "
+              f"val samples={len(val_ds)} (train-derived, un-augmented, val_fraction={val_fraction}) "
+              f"test samples={len(test_ds)}")
+        return train_loader, val_loader, test_loader
+
+    # Scratch (val_fraction=0): validation == held-out test set, exactly as before.
     train_ds = ConcatDataset([GenDataset(g, kind) for g in train_gens])
     val_ds = GenDataset(test_gen, kind)
+    if len(train_ds) < batch_size:
+        raise ValueError(
+            f"training set has {len(train_ds)} samples < batch_size {batch_size}. "
+            f"Reduce --batch-size or add training data.")
+    if len(val_ds) < 1:
+        raise ValueError("validation (held-out) set is empty; pick a non-empty --test-set.")
     train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True,
                               num_workers=0, drop_last=True)
     val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=0)
     print(f"[torch-train] train samples={len(train_ds)} val samples={len(val_ds)}")
-    return train_loader, val_loader
+    return train_loader, val_loader, None
 
 
 def train_loop(model, opt, train_loader, val_loader, kind, epochs, steps, ckpt_path, device,
@@ -278,7 +349,7 @@ def main():
     print(f"[torch-train] {args.experiment} test={test_set} train={train_sets} "
           f"device={device}\n[torch-train] -> {ckpt_path}")
 
-    train_loader, val_loader = build_loaders(
+    train_loader, val_loader, _ = build_loaders(
         args.experiment, kind, train_sets, test_set, crop=args.crop, epochs=args.epochs,
         steps=args.steps, batch_size=args.batch_size, seed=args.seed,
         raw_root=args.raw_root, out_dir=out_dir)

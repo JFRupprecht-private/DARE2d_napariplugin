@@ -18,7 +18,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
+import random
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -44,6 +46,28 @@ import train_split as ts   # noqa: E402  run-dir resolver + default raw root
 import models_torch as M   # noqa: E402  faithful torch models
 
 _EXP = T._EXP              # experiment -> (batch_training cfg, output subfolder, kind)
+
+
+# --------------------------------------------------------------------------- #
+# Reproducibility                                                             #
+# --------------------------------------------------------------------------- #
+def set_seed(seed, deterministic=True):
+    """Seed every RNG the fine-tune path consumes: Python ``random`` (albumentations p-gating AND
+    seg_2dataset.random_crop's randrange), numpy, and torch on CPU + all CUDA devices. With
+    ``deterministic``, also pin cuDNN to deterministic convolution algorithms and disable autotuning.
+
+    NB: this makes the REGRESSION stage bitwise-reproducible on GPU, but NOT the segmentation U-Net:
+    its nearest-neighbour upsample backward is a nondeterministic atomicAdd kernel that
+    ``cudnn.deterministic`` does not cover. We deliberately avoid ``torch.use_deterministic_algorithms``,
+    which would *raise* on that op rather than run it. Segmentation is therefore seed-reproducible in
+    its data pipeline but not bitwise-identical run-to-run on GPU."""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    if deterministic:
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
 
 
 # --------------------------------------------------------------------------- #
@@ -202,7 +226,8 @@ def _fingerprint(path):
             "size_bytes": Path(path).stat().st_size}
 
 
-def write_sidecar(ckpt_path, args, base_path, kind, best_val):
+def write_sidecar(ckpt_path, args, base_path, kind, best_val, test_loss=None,
+                  base_val=None, base_test=None):
     cfg = {
         "mode": "finetune",
         "backend": "pytorch",
@@ -228,9 +253,22 @@ def write_sidecar(ckpt_path, args, base_path, kind, best_val):
             "augment": not args.no_augment,
             "augment_strength": args.augment_strength,
             "patience": args.patience,
+            "val_fraction": args.val_fraction,
+            "deterministic": not args.no_deterministic,
         },
         "base_model": _fingerprint(base_path),
-        "best_val_loss": float(best_val),
+        # best_val_loss is now the train-derived val split (val_fraction>0) or the held-out test set
+        # (val_fraction==0, legacy); null if no epoch improved (best stayed inf -> invalid JSON).
+        "best_val_loss": (float(best_val) if math.isfinite(best_val) else None),
+        # one-shot loss on the held-out --test-set using the selected checkpoint; null if unavailable.
+        "heldout_test_loss": (float(test_loss)
+                              if test_loss is not None and math.isfinite(test_loss) else None),
+        # F1: the BASE (pre-fine-tune) model's loss on the same val split / held-out test set, so the
+        # fine-tuned numbers above have a reference point (was the fine-tune actually an improvement?).
+        "base_val_loss": (float(base_val)
+                          if base_val is not None and math.isfinite(base_val) else None),
+        "base_heldout_test_loss": (float(base_test)
+                                   if base_test is not None and math.isfinite(base_test) else None),
         "timestamp": datetime.now().isoformat(timespec="seconds"),
     }
     out = Path(ckpt_path).parent / "finetune_config.json"
@@ -253,6 +291,12 @@ def main():
     ap.add_argument("--steps", type=int, default=500)
     ap.add_argument("--batch-size", type=int, default=32)
     ap.add_argument("--seed", type=int, default=12345)
+    ap.add_argument("--val-fraction", type=float, default=0.1,
+                    help="fraction of the TRAIN pool held out (un-augmented) as a validation split "
+                         "for checkpoint selection / early-stopping; the --test-set is then evaluated "
+                         "once as heldout_test_loss. 0 = validate on the test set (legacy behaviour).")
+    ap.add_argument("--no-deterministic", action="store_true",
+                    help="disable deterministic cuDNN (slightly faster, but runs are not reproducible)")
     # fine-tuning knobs (advanced)
     ap.add_argument("--unfreeze-last", type=int, default=0,
                     help="unfreeze the last N backbone blocks (0 = head only)")
@@ -290,8 +334,7 @@ def main():
         raise SystemExit(f"base model not found: {base}")
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    torch.manual_seed(args.seed)
-    np.random.seed(args.seed)
+    set_seed(args.seed, deterministic=not args.no_deterministic)
     run_name = args.run_name or datetime.now().date().isoformat()
     out_dir, run_name = ts.resolve_run_dir(run_name, sub, f"{test_set}_all_but_target",
                                            ckpt_name="best.pt")
@@ -305,11 +348,29 @@ def main():
     load_base(model, base, args.experiment)
 
     # 2) data (reuse the scratch pipeline verbatim)
-    train_loader, val_loader = T.build_loaders(
+    train_loader, val_loader, test_loader = T.build_loaders(
         args.experiment, kind, train_sets, test_set, crop=args.crop, epochs=args.epochs,
         steps=args.steps, batch_size=args.batch_size, seed=args.seed,
         raw_root=args.raw_root, out_dir=out_dir,
-        augment=not args.no_augment, aug_strength=args.augment_strength)
+        augment=not args.no_augment, aug_strength=args.augment_strength,
+        val_fraction=args.val_fraction)
+
+    # 2b) BASELINE (F1): evaluate the BASE model before any fine-tuning, so a run that fails to beat
+    #     its starting checkpoint is visible rather than silent. Weights are still the loaded base
+    #     here (apply_freeze below only flips requires_grad); evaluate() uses full loaders.
+    #     This diagnostic must NOT change the science: snapshot & restore every RNG it might touch so
+    #     the fine-tuned model is bitwise-identical whether or not the baseline eval ran.
+    _rng = (random.getstate(), np.random.get_state(), torch.get_rng_state(),
+            torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None)
+    base_val = T.evaluate(model, val_loader, kind, device)
+    base_test = T.evaluate(model, test_loader, kind, device) if test_loader is not None else None
+    random.setstate(_rng[0])
+    np.random.set_state(_rng[1])
+    torch.set_rng_state(_rng[2])
+    if _rng[3] is not None:
+        torch.cuda.set_rng_state_all(_rng[3])
+    print(f"[finetune] baseline (pre-fine-tune) val_loss={base_val:.4f}"
+          + (f" heldout_test_loss={base_test:.4f}" if base_test is not None else ""), flush=True)
 
     # 3) freeze + discriminative optimizer + warmup/cosine schedule + frozen-BN policy
     head_params, bb_params = apply_freeze(model, kind, args.unfreeze_last)
@@ -335,8 +396,31 @@ def main():
                         ckpt_path, device, lr_scheduler=sched, patience=patience,
                         grad_clip=grad_clip, on_train_mode=arm)
 
-    write_sidecar(ckpt_path, args, base, kind, best)
-    print(f"[finetune] DONE. best val_loss={best:.4f}  checkpoint: {ckpt_path}")
+    # 5) one-shot held-out test estimate on the SELECTED checkpoint (train_loop saved best.pt at the
+    #    best val-split epoch). Guarded: a diverged/NaN run never improves on inf, so best.pt may not
+    #    exist -- skip rather than crash. Full test set (no max_batches). Avoid the literal
+    #    "checkpoint:" in this line so the notebook still captures the final DONE line.
+    test_loss = None
+    if test_loader is not None and ckpt_path.exists():
+        model.load_state_dict(torch.load(str(ckpt_path), map_location=device))
+        test_loss = T.evaluate(model, test_loader, kind, device)
+        print(f"[finetune] held-out test loss (selected best model) = {test_loss:.4f}", flush=True)
+
+    # F1: warn (non-fatal) if fine-tuning did not improve on the base model. Prefer the held-out test
+    # comparison; fall back to the val split when there is no test loader. Keep "checkpoint:" out of
+    # this line so the notebook's final-line capture is unaffected.
+    ft_metric, base_metric, where = ((test_loss, base_test, "held-out test set")
+                                     if test_loss is not None and base_test is not None
+                                     else (best, base_val, "validation split"))
+    if (base_metric is not None and math.isfinite(base_metric)
+            and math.isfinite(ft_metric) and ft_metric >= base_metric):
+        print(f"[finetune] WARNING: fine-tuned model does NOT beat the base model on the {where} "
+              f"(base={base_metric:.4f}, fine-tuned={ft_metric:.4f}). Consider a lower --ft-lr, more "
+              f"epochs, or more training data.", flush=True)
+
+    write_sidecar(ckpt_path, args, base, kind, best, test_loss, base_val, base_test)
+    best_str = f"{best:.4f}" if math.isfinite(best) else "n/a (no epoch improved)"
+    print(f"[finetune] DONE. best val_loss={best_str}  checkpoint: {ckpt_path}")
 
 
 if __name__ == "__main__":
