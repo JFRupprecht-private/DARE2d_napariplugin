@@ -111,7 +111,7 @@ pip install -r requirements-torch.txt     # PyTorch backend (GPU / CUDA)
 
 # 3) napari + its Qt backend — installed explicitly: pinning napari[all] in the requirements
 #    does not reliably pull a Qt backend on a fresh resolve.
-pip install "napari[all]"
+pip install "napari[all]==0.4.18"
 
 # 4) the DARE2D core, then the plugin (no deps -> don't disturb the pins)
 pip install -e .
